@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { useNotification } from './NotificationProvider';
 import { Button } from './ui/Button';
 import { Logo } from './ui/Logo';
 import { 
@@ -13,15 +14,50 @@ import {
   Menu,
   X,
   LogOut,
-  PenTool
+  PenTool,
+  Shield,
+  Check,
+  Trash2
 } from 'lucide-react';
 
 export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const { user, login, logout } = useAuth();
+  const { addNotification, history, unreadCount, markAllAsRead, clearHistory } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
+  // Simulate smart notifications based on user interest
+  useEffect(() => {
+    if (!user) return;
+
+    // Simulate a notification 5 seconds after login/load
+    const timer1 = setTimeout(() => {
+      addNotification({
+        type: 'info',
+        title: 'New Research Alert',
+        message: 'A new paper on "Real-time DSP in Rust" matches your expertise.',
+        duration: 8000
+      });
+    }, 5000);
+
+    // Simulate a social interaction 15 seconds later
+    const timer2 = setTimeout(() => {
+      addNotification({
+        type: 'success',
+        title: 'Sarah Jenkins replied',
+        message: 'Sarah commented on your thread "Optimizing AudioWorklets": "Totally agree, checking the buffer size..."',
+        duration: 6000
+      });
+    }, 20000);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, [user, addNotification]);
 
   const isActive = (path: string) => {
     return location.pathname.startsWith(path) 
@@ -32,7 +68,24 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
   const handleSignOut = () => {
     logout();
     setIsUserMenuOpen(false);
+    setIsNotificationOpen(false);
     navigate('/');
+    addNotification({
+      type: 'info',
+      title: 'Signed Out',
+      message: 'Come back soon!',
+      duration: 3000
+    });
+  };
+
+  const handleLogin = () => {
+    login();
+    addNotification({
+      type: 'success',
+      title: 'Welcome back',
+      message: 'Your feed has been personalized based on your expertise.',
+      duration: 4000
+    });
   };
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -84,10 +137,67 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
 
             {user ? (
               <div className="flex items-center gap-3">
-                <button className="hidden sm:block text-slate-400 hover:text-white transition-colors">
-                  <Bell size={20} />
-                </button>
+                {/* Notification Bell */}
+                <div className="relative">
+                  <button 
+                    className="hidden sm:block text-slate-400 hover:text-white transition-colors relative group p-1"
+                    onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  >
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-background animate-pulse"></span>
+                    )}
+                  </button>
+
+                  {/* Notification Dropdown */}
+                  {isNotificationOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsNotificationOpen(false)} />
+                      <div className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/80 z-50 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+                          <h3 className="text-sm font-bold text-white">Notifications</h3>
+                          <div className="flex gap-2">
+                            {unreadCount > 0 && (
+                              <button onClick={markAllAsRead} className="text-xs text-primary hover:text-indigo-400" title="Mark all as read">
+                                <Check size={14} />
+                              </button>
+                            )}
+                            {history.length > 0 && (
+                              <button onClick={clearHistory} className="text-xs text-slate-500 hover:text-red-400" title="Clear all">
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="max-h-[300px] overflow-y-auto">
+                          {history.length === 0 ? (
+                            <div className="p-8 text-center text-slate-500 text-sm">
+                              No notifications yet
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-slate-800">
+                              {history.map(n => (
+                                <div key={n.id} className={`p-4 hover:bg-slate-800/50 transition-colors ${!n.read ? 'bg-slate-800/20' : ''}`}>
+                                  <div className="flex gap-3">
+                                    <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-primary' : 'bg-slate-600'}`} />
+                                    <div>
+                                      <h4 className={`text-sm font-medium ${!n.read ? 'text-white' : 'text-slate-400'}`}>{n.title}</h4>
+                                      <p className="text-xs text-slate-500 mt-1 line-clamp-2">{n.message}</p>
+                                      <span className="text-[10px] text-slate-600 mt-2 block">{n.timestamp?.toLocaleTimeString()}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
                 
+                {/* User Menu */}
                 <div className="relative">
                   <div 
                     className="h-8 w-8 rounded-full bg-slate-800 overflow-hidden ring-2 ring-slate-800 hover:ring-primary cursor-pointer transition-all"
@@ -107,32 +217,44 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
                         className="fixed inset-0 z-40" 
                         onClick={() => setIsUserMenuOpen(false)}
                       />
-                      <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-800 bg-slate-900 py-1 shadow-lg shadow-black/50 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="px-4 py-2 border-b border-slate-800">
-                          <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                      <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-800 bg-slate-900 py-2 shadow-2xl shadow-black/80 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="px-4 py-3 border-b border-slate-800 mb-2">
+                          <p className="text-sm font-bold text-white truncate">{user.name}</p>
                           <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                          <div className="mt-2 flex gap-1 flex-wrap">
+                            {user.role === 'ADMIN' && (
+                              <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">
+                                Admin
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        
                         <Link 
                           to="/lab/new" 
-                          className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                           onClick={() => setIsUserMenuOpen(false)}
                         >
-                          <PenTool size={14} className="mr-2" /> New Lab Note
+                          <PenTool size={16} className="mr-3 text-slate-500" /> New Lab Note
                         </Link>
+                        
                         {user.role === 'ADMIN' && (
                           <Link 
                             to="/admin" 
-                            className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white"
+                            className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                             onClick={() => setIsUserMenuOpen(false)}
                           >
-                            <Settings size={14} className="mr-2" /> Admin
+                            <Shield size={16} className="mr-3 text-slate-500" /> Admin Panel
                           </Link>
                         )}
+                        
+                        <div className="my-2 border-t border-slate-800"></div>
+                        
                         <button 
                           onClick={handleSignOut}
-                          className="flex w-full items-center px-4 py-2 text-sm text-red-400 hover:bg-slate-800 hover:text-red-300"
+                          className="flex w-full items-center px-4 py-2 text-sm text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors"
                         >
-                          <LogOut size={14} className="mr-2" /> Sign Out
+                          <LogOut size={16} className="mr-3" /> Sign Out
                         </button>
                       </div>
                     </>
@@ -140,7 +262,7 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
                 </div>
               </div>
             ) : (
-              <Button size="sm" onClick={login}>Sign In</Button>
+              <Button size="sm" onClick={handleLogin}>Sign In</Button>
             )}
           </div>
         </div>
@@ -171,7 +293,7 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
             </Link>
             {!user && (
               <div className="pt-2 border-t border-slate-800 mt-2">
-                 <Button className="w-full" onClick={() => { login(); setIsMobileMenuOpen(false); }}>Sign In</Button>
+                 <Button className="w-full" onClick={() => { handleLogin(); setIsMobileMenuOpen(false); }}>Sign In</Button>
               </div>
             )}
           </div>

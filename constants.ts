@@ -4,8 +4,8 @@ export const MOCK_USER: User = {
   id: 'u1',
   name: 'Alex Chen',
   email: 'alex@nomadlabs.dev',
-  role: UserRole.AUTHOR,
-  expertise: ['DSP', 'Rust', 'WASM'],
+  role: UserRole.ADMIN, // Changed to ADMIN to show the panel
+  expertise: ['DSP', 'Rust', 'WASM', 'React'], // Added React to trigger recommendations
   avatarUrl: 'https://picsum.photos/seed/alex/200/200',
   bio: 'Audio systems engineer specializing in low-latency web audio.'
 };
@@ -95,6 +95,25 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
     tags: [
       { id: 't2', name: 'DSP', slug: 'dsp', type: 'TOPIC' }
     ]
+  },
+  {
+    id: 'p4',
+    slug: 'generative-music-transformers',
+    title: 'Generative Music with Transformers',
+    subtitle: 'Using small language models to generate MIDI sequences in real-time.',
+    type: PostType.PAPER,
+    status: PostStatus.PUBLISHED,
+    author: { ...MOCK_USER, name: 'Dr. Aris Thorne', id: 'u5' },
+    authorId: 'u5',
+    content: '...',
+    abstract: 'An exploration of attention mechanisms applied to symbolic music generation, optimized for edge devices.',
+    publishedAt: '2023-11-10',
+    readTimeMinutes: 15,
+    tags: [
+      { id: 't6', name: 'AI', slug: 'ai', type: 'TOPIC' },
+      { id: 't7', name: 'Python', slug: 'python', type: 'STACK' }
+    ],
+    version: '0.9.0'
   }
 ];
 
