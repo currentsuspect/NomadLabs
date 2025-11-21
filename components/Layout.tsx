@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { Button } from './ui/Button';
 import { Logo } from './ui/Logo';
@@ -16,7 +16,7 @@ import {
   PenTool
 } from 'lucide-react';
 
-export const Layout: React.FC = () => {
+export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const { user, login, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -180,7 +180,7 @@ export const Layout: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="container mx-auto px-4 py-8 min-h-[calc(100vh-300px)]">
-        <Outlet />
+        {children}
       </main>
       
       {/* Footer */}

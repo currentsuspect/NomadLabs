@@ -27,23 +27,23 @@ const App: React.FC = () => {
     <AuthProvider>
       <MemoryRouter>
         <ScrollToTop />
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/explore" replace />} />
-            <Route path="explore" element={<ExploreView />} />
-            <Route path="lab" element={<LabView />} />
-            <Route path="lab/new" element={<EditorView />} />
-            <Route path="read/:slug" element={<ArticleView />} />
-            <Route path="admin" element={<AdminView />} />
-            <Route path="about" element={<AboutView />} />
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Navigate to="/explore" replace />} />
+            <Route path="/explore" element={<ExploreView />} />
+            <Route path="/lab" element={<LabView />} />
+            <Route path="/lab/new" element={<EditorView />} />
+            <Route path="/read/:slug" element={<ArticleView />} />
+            <Route path="/admin" element={<AdminView />} />
+            <Route path="/about" element={<AboutView />} />
             
             {/* Placeholder Routes */}
-            <Route path="guidelines" element={<ComingSoonView />} />
-            <Route path="submit-research" element={<ComingSoonView />} />
-            <Route path="fellowships" element={<ComingSoonView />} />
+            <Route path="/guidelines" element={<ComingSoonView />} />
+            <Route path="/submit-research" element={<ComingSoonView />} />
+            <Route path="/fellowships" element={<ComingSoonView />} />
             <Route path="*" element={<Navigate to="/explore" replace />} />
-          </Route>
-        </Routes>
+          </Routes>
+        </Layout>
       </MemoryRouter>
     </AuthProvider>
   );
