@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
@@ -49,7 +50,8 @@ export const EditorView: React.FC = () => {
         readTimeMinutes: Math.max(1, Math.ceil(content.split(' ').length / 200)),
         tags: [],
         featured: false,
-        pinned: false
+        pinned: false,
+        likes: [] // Initialize empty likes
     };
 
     try {

@@ -1,8 +1,10 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
-import { ArrowRight, Sparkles, Zap, Bookmark, Globe } from 'lucide-react';
+import { ArrowRight, Sparkles, Zap, Bookmark, Globe, PlusCircle } from 'lucide-react';
 import { PostCard } from '../components/PostCard';
+import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
 import { Post } from '../types';
 
@@ -228,15 +230,16 @@ export const HomeView: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       const data = await api.posts.list();
-      setPosts(data);
+      setPosts(data.filter(p => p.status === 'PUBLISHED'));
       setLoading(false);
     };
     loadData();
   }, []);
 
-  // Featured Logic
-  const featuredPost = posts.find(p => p.featured) || posts.find(p => p.type === 'PAPER');
-  // Pinned Logic
+  // Featured Logic: Try to find explicitly featured, then papers, then just the first post
+  const featuredPost = posts.find(p => p.featured) || posts.find(p => p.type === 'PAPER') || posts[0];
+  
+  // Pinned Logic: Exclude the featured one to avoid duplication
   const pinnedPosts = posts.filter(p => p.pinned && p.id !== featuredPost?.id);
 
   // --- Advanced Recommendation Engine ---
@@ -270,8 +273,7 @@ export const HomeView: React.FC = () => {
   const latestPosts = posts.filter(p => 
     p.id !== featuredPost?.id && 
     !pinnedPosts.find(pinned => pinned.id === p.id) &&
-    !recommendedPosts.find(r => r.id === p.id) &&
-    p.status === 'PUBLISHED'
+    !recommendedPosts.find(r => r.id === p.id)
   ).slice(0, 6);
 
   if (loading) {
@@ -284,6 +286,37 @@ export const HomeView: React.FC = () => {
 
       <div className="relative z-10 space-y-20 fade-in pb-20 pointer-events-none">
         
+        {/* 0. Empty State (System Start) */}
+        {!featuredPost && (
+          <section className="relative pt-4 pointer-events-auto min-h-[60vh] flex flex-col justify-center">
+            <div className="relative overflow-hidden rounded-3xl border-2 border-white/10 bg-slate-900/60 backdrop-blur-2xl p-8 md:p-14 lg:p-16 shadow-2xl text-center">
+              <div className="max-w-3xl mx-auto space-y-8">
+                <div className="inline-flex items-center gap-2 text-emerald-400 text-sm font-bold tracking-widest uppercase">
+                   <Zap size={16} /> System Online
+                </div>
+                <h1 className="text-4xl md:text-6xl font-bold text-white leading-tight">
+                  Welcome to <span className="text-indigo-500">Nomad Labs</span>
+                </h1>
+                <p className="text-xl text-slate-300 leading-relaxed">
+                  The platform is live and ready. Be the first to publish your research, experiments, and lab notes to the community.
+                </p>
+                <div className="flex justify-center gap-4 pt-4">
+                  <Link to="/lab/new">
+                    <Button size="lg" className="shadow-xl shadow-indigo-500/20">
+                      <PlusCircle size={18} className="mr-2" /> Submit First Entry
+                    </Button>
+                  </Link>
+                  {!user && (
+                    <Link to="/auth">
+                      <Button variant="secondary" size="lg">Join the Lab</Button>
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* 1. Hero / Featured Section */}
         {featuredPost && (
           <section className="relative pt-4 pointer-events-auto">
@@ -365,23 +398,27 @@ export const HomeView: React.FC = () => {
         )}
 
         {/* 4. Global Feed */}
-        <section className="space-y-8 pointer-events-auto">
-          <div className="flex items-center gap-3 text-white text-2xl font-bold tracking-tight">
-            <Globe size={24} className="text-sky-500" /> Latest Publications
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {latestPosts.map(post => (
-              <PostCard key={post.id} post={post} />
-            ))}
-            
-            <Link to="/explore" className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-8 hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all min-h-[240px]">
-               <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform group-hover:bg-indigo-600 text-white shadow-xl">
-                 <ArrowRight size={28} className="text-slate-400 group-hover:text-white" />
-               </div>
-               <span className="font-medium text-slate-400 group-hover:text-white transition-colors">View All Research</span>
-            </Link>
-          </div>
-        </section>
+        {featuredPost && (
+          <section className="space-y-8 pointer-events-auto">
+            <div className="flex items-center gap-3 text-white text-2xl font-bold tracking-tight">
+              <Globe size={24} className="text-sky-500" /> Latest Publications
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {latestPosts.map(post => (
+                <PostCard key={post.id} post={post} />
+              ))}
+              
+              {latestPosts.length > 0 && (
+                <Link to="/explore" className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-8 hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all min-h-[240px]">
+                  <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform group-hover:bg-indigo-600 text-white shadow-xl">
+                    <ArrowRight size={28} className="text-slate-400 group-hover:text-white" />
+                  </div>
+                  <span className="font-medium text-slate-400 group-hover:text-white transition-colors">View All Research</span>
+                </Link>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

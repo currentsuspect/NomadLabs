@@ -62,21 +62,24 @@ export interface Post {
   // CMS Control Flags
   featured?: boolean; // Determines if it appears in the Hero section
   pinned?: boolean;   // Determines if it sticks to the top of lists
+  
+  // Live Data
+  likes: string[]; // Array of User IDs
 }
 
 export type ReactionType = 'LIKE' | 'FIRE' | 'BRAIN' | 'ROCKET';
 
-export interface Reaction {
+export interface CommentReaction {
+  userId: string;
   type: ReactionType;
-  count: number;
-  userHasReacted: boolean;
 }
 
 export interface Comment {
   id: string;
+  postId: string;
   author: User;
   content: string;
   createdAt: string;
   replies?: Comment[];
-  reactions: Reaction[];
+  reactions: CommentReaction[];
 }

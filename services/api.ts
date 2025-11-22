@@ -1,91 +1,114 @@
-import { MOCK_POSTS, MOCK_USER, MOCK_COMMENTS } from '../constants';
-import { Post, User, Comment } from '../types';
 
-const DELAY = 400; // Simulate realistic network latency
+import { Post, User, Comment, PostType, PostStatus, UserRole } from '../types';
 
+const STORAGE_KEYS = {
+  POSTS: 'nomad_posts',
+  USERS: 'nomad_users',
+  COMMENTS: 'nomad_comments',
+  INIT: 'nomad_init_v3' // Bump version to force clean slate for new schema
+};
+
+// Helper for safe local storage access
 const get = <T>(key: string, defaultVal: T): T => {
   try {
+    if (typeof window === 'undefined') return defaultVal;
     const val = localStorage.getItem(key);
     return val ? JSON.parse(val) : defaultVal;
   } catch (e) {
+    console.error(`Error reading ${key}`, e);
     return defaultVal;
   }
 };
 
-const set = (key: string, val: any) => localStorage.setItem(key, JSON.stringify(val));
+const set = (key: string, val: any) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch (e) {
+    console.error(`Error writing ${key}`, e);
+  }
+};
 
 export const api = {
   init: () => {
     if (typeof window === 'undefined') return;
-    if (!localStorage.getItem('nomad_init')) {
-      set('nomad_users', [MOCK_USER]);
-      set('nomad_posts', MOCK_POSTS);
-      set('nomad_comments', MOCK_COMMENTS);
-      localStorage.setItem('nomad_init', 'true');
+    
+    // One-time initialization for a fresh deploy if needed
+    if (!localStorage.getItem(STORAGE_KEYS.INIT)) {
+      // Ensure arrays exist but are empty (Clean Slate)
+      // For v3, we clear old data to prevent type mismatches with new Comment/Post schemas
+      set(STORAGE_KEYS.POSTS, []);
+      set(STORAGE_KEYS.USERS, []);
+      set(STORAGE_KEYS.COMMENTS, []);
+      
+      localStorage.setItem(STORAGE_KEYS.INIT, 'true');
     }
   },
+
   posts: {
     list: async (): Promise<Post[]> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      return get<Post[]>('nomad_posts', []);
+      return get<Post[]>(STORAGE_KEYS.POSTS, []);
     },
     get: async (slug: string): Promise<Post | undefined> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      return get<Post[]>('nomad_posts', []).find(p => p.slug === slug);
+      const posts = get<Post[]>(STORAGE_KEYS.POSTS, []);
+      return posts.find(p => p.slug === slug);
     },
     create: async (post: Post): Promise<void> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const posts = get<Post[]>('nomad_posts', []);
-      set('nomad_posts', [post, ...posts]);
+      const posts = get<Post[]>(STORAGE_KEYS.POSTS, []);
+      // Check for slug collision
+      if (posts.find(p => p.slug === post.slug)) {
+         post.slug = `${post.slug}-${Date.now()}`;
+      }
+      set(STORAGE_KEYS.POSTS, [post, ...posts]);
     },
     update: async (post: Post): Promise<void> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const posts = get<Post[]>('nomad_posts', []);
-      set('nomad_posts', posts.map(p => p.id === post.id ? post : p));
+      const posts = get<Post[]>(STORAGE_KEYS.POSTS, []);
+      set(STORAGE_KEYS.POSTS, posts.map(p => p.id === post.id ? post : p));
     },
     delete: async (id: string): Promise<void> => {
-       await new Promise(r => setTimeout(r, DELAY));
-       const posts = get<Post[]>('nomad_posts', []);
-       set('nomad_posts', posts.filter(p => p.id !== id));
+       const posts = get<Post[]>(STORAGE_KEYS.POSTS, []);
+       set(STORAGE_KEYS.POSTS, posts.filter(p => p.id !== id));
     }
   },
+
   users: {
     get: async (id: string): Promise<User | undefined> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      return get<User[]>('nomad_users', []).find(u => u.id === id);
+      return get<User[]>(STORAGE_KEYS.USERS, []).find(u => u.id === id);
     },
     login: async (email: string): Promise<User | undefined> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const users = get<User[]>('nomad_users', []);
-      // Simple mock auth logic
+      const users = get<User[]>(STORAGE_KEYS.USERS, []);
       return users.find(u => u.email.toLowerCase() === email.toLowerCase());
     },
     register: async (user: User): Promise<void> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const users = get<User[]>('nomad_users', []);
-      if (users.find(u => u.email === user.email)) {
+      const users = get<User[]>(STORAGE_KEYS.USERS, []);
+      if (users.find(u => u.email.toLowerCase() === user.email.toLowerCase())) {
         throw new Error('User already exists');
       }
-      set('nomad_users', [...users, user]);
+      set(STORAGE_KEYS.USERS, [...users, user]);
     },
     update: async (user: User): Promise<void> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const users = get<User[]>('nomad_users', []);
-      set('nomad_users', users.map(u => u.id === user.id ? user : u));
+      const users = get<User[]>(STORAGE_KEYS.USERS, []);
+      set(STORAGE_KEYS.USERS, users.map(u => u.id === user.id ? user : u));
+    },
+    getAll: async (): Promise<User[]> => {
+      return get<User[]>(STORAGE_KEYS.USERS, []);
     }
   },
+
   comments: {
-    list: async (): Promise<Comment[]> => {
-       // In a real API, we'd filter by Post ID here, but for this mock we return all 
-       // and filter on the client or let the view handle it. 
-       // For simplicity in this structure, we are returning the flat list.
-       await new Promise(r => setTimeout(r, DELAY));
-       return get<Comment[]>('nomad_comments', []);
+    list: async (postId?: string): Promise<Comment[]> => {
+       const allComments = get<Comment[]>(STORAGE_KEYS.COMMENTS, []);
+       if (postId) {
+         return allComments.filter(c => c.postId === postId);
+       }
+       return allComments;
     },
     create: async (comment: Comment): Promise<void> => {
-      await new Promise(r => setTimeout(r, DELAY));
-      const comments = get<Comment[]>('nomad_comments', []);
-      set('nomad_comments', [comment, ...comments]);
+      const comments = get<Comment[]>(STORAGE_KEYS.COMMENTS, []);
+      set(STORAGE_KEYS.COMMENTS, [...comments, comment]);
+    },
+    update: async (comment: Comment): Promise<void> => {
+      const comments = get<Comment[]>(STORAGE_KEYS.COMMENTS, []);
+      set(STORAGE_KEYS.COMMENTS, comments.map(c => c.id === comment.id ? comment : c));
     }
   }
 };

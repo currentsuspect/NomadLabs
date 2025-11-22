@@ -3,11 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNotification } from '../components/NotificationProvider';
 import { Button } from '../components/ui/Button';
-import { MOCK_POSTS, MOCK_USER } from '../constants';
+import { api } from '../services/api';
 import { PostCard } from '../components/PostCard';
-import { User, Edit2, MapPin, Link as LinkIcon, Mail, Camera, Save, X, Shield, Hash, UserMinus, UserPlus, Check, FileText, Clock, Edit } from 'lucide-react';
-import { Navigate, useParams, useNavigate } from 'react-router-dom';
-import { User as UserType } from '../types';
+import { User, Edit2, MapPin, Link as LinkIcon, Mail, Camera, Save, X, Shield, Hash, UserMinus, UserPlus, Check, FileText, Clock, Edit, Loader2 } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { User as UserType, Post } from '../types';
 
 export const UserProfileView: React.FC = () => {
   const { user: authUser, updateUser } = useAuth();
@@ -17,14 +17,46 @@ export const UserProfileView: React.FC = () => {
   
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<'posts' | 'drafts' | 'network'>('posts');
+  const [profileUser, setProfileUser] = useState<UserType | null>(null);
+  const [userPosts, setUserPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [followingUsersData, setFollowingUsersData] = useState<UserType[]>([]);
   
   const isOwnProfile = !userId || (authUser && authUser.id === userId);
-  
-  const profileUser: UserType | null = isOwnProfile 
-    ? authUser 
-    : (MOCK_POSTS.find(p => p.authorId === userId)?.author || 
-       (userId === MOCK_USER.id ? MOCK_USER : null));
 
+  // Load user data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      let targetUser: UserType | undefined;
+
+      if (isOwnProfile) {
+        targetUser = authUser || undefined;
+      } else if (userId) {
+        targetUser = await api.users.get(userId);
+      }
+
+      if (targetUser) {
+        setProfileUser(targetUser);
+        const allPosts = await api.posts.list();
+        setUserPosts(allPosts.filter(p => p.authorId === targetUser?.id));
+        
+        // Load network data
+        if (targetUser.followingUsers.length > 0) {
+           const users = await api.users.getAll();
+           const followed = users.filter(u => targetUser?.followingUsers.includes(u.id));
+           setFollowingUsersData(followed);
+        } else {
+           setFollowingUsersData([]);
+        }
+      }
+      setLoading(false);
+    };
+
+    loadData();
+  }, [userId, authUser, isOwnProfile]);
+
+  // Edit State form
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [expertiseInput, setExpertiseInput] = useState('');
@@ -39,29 +71,13 @@ export const UserProfileView: React.FC = () => {
     }
   }, [profileUser]);
 
-  if (!profileUser) {
-    return <div className="text-center py-20 text-slate-500">User not found.</div>;
-  }
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-slate-500" size={32} /></div>;
+  if (!profileUser) return <div className="text-center py-20 text-slate-500">User not found.</div>;
 
-  // Filter posts
-  const publishedPosts = MOCK_POSTS.filter(p => p.authorId === profileUser.id && p.status === 'PUBLISHED');
-  const draftPosts = isOwnProfile ? MOCK_POSTS.filter(p => p.authorId === profileUser.id && p.status === 'DRAFT') : [];
+  const publishedPosts = userPosts.filter(p => p.status === 'PUBLISHED');
+  const draftPosts = isOwnProfile ? userPosts.filter(p => p.status === 'DRAFT') : [];
 
-  const followedUsersList = profileUser.followingUsers.map(id => {
-    const post = MOCK_POSTS.find(p => p.authorId === id);
-    return post ? post.author : { 
-      id, 
-      name: 'Unknown User', 
-      expertise: [] as string[], 
-      role: 'MEMBER' as const, 
-      email: '', 
-      followingUsers: [], 
-      followingTags: [],
-      avatarUrl: undefined
-    } as UserType;
-  });
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!isOwnProfile) return;
 
     const expertiseArray = expertiseInput
@@ -69,7 +85,7 @@ export const UserProfileView: React.FC = () => {
       .map(s => s.trim())
       .filter(s => s.length > 0);
 
-    updateUser({
+    await updateUser({
       name,
       bio,
       expertise: expertiseArray,
@@ -125,9 +141,7 @@ export const UserProfileView: React.FC = () => {
 
   return (
     <div className="max-w-5xl mx-auto fade-in pb-20">
-      {/* Profile Header Card */}
       <div className="relative bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden mb-12">
-        {/* Banner Pattern */}
         <div className="h-48 bg-gradient-to-r from-indigo-900/40 to-slate-900 w-full relative overflow-hidden">
           <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '20px 20px' }}></div>
         </div>
@@ -180,7 +194,6 @@ export const UserProfileView: React.FC = () => {
             </div>
           </div>
 
-          {/* Edit Mode Form */}
           {isEditing && isOwnProfile ? (
             <div className="grid gap-6 max-w-2xl animate-in fade-in">
               <div>
@@ -235,7 +248,6 @@ export const UserProfileView: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs */}
       <div className="flex items-center gap-8 mb-8 border-b border-slate-800 pb-1 overflow-x-auto">
         <button 
           onClick={() => setActiveTab('posts')}
@@ -253,7 +265,7 @@ export const UserProfileView: React.FC = () => {
               activeTab === 'drafts' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
-            Drafts & Work in Progress ({draftPosts.length})
+            Drafts ({draftPosts.length})
           </button>
         )}
 
@@ -267,7 +279,6 @@ export const UserProfileView: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab Content */}
       {activeTab === 'posts' && (
          <div className="grid lg:grid-cols-3 gap-8 animate-in fade-in">
            <div className="space-y-6">
@@ -281,11 +292,6 @@ export const UserProfileView: React.FC = () => {
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-400">Lab Notes</span>
                     <span className="font-mono font-bold text-white">{publishedPosts.filter(p => p.type === 'LAB_NOTE').length}</span>
-                  </div>
-                  <div className="w-full h-px bg-slate-800 my-2"></div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-400">Total Citations</span>
-                    <span className="font-mono font-bold text-emerald-400">14</span>
                   </div>
                 </div>
               </div>
@@ -330,7 +336,6 @@ export const UserProfileView: React.FC = () => {
                      </div>
                      <h3 className="text-xl font-bold text-slate-200 mb-2">{draft.title}</h3>
                      <p className="text-slate-500 text-sm line-clamp-2 mb-6">{draft.subtitle || "No content preview..."}</p>
-                     
                      <div className="flex gap-3">
                        <Button size="sm" onClick={() => navigate('/lab/new')} className="w-full">
                          <Edit size={14} className="mr-2" /> Continue Editing
@@ -354,13 +359,13 @@ export const UserProfileView: React.FC = () => {
          <div className="grid md:grid-cols-2 gap-8 animate-in fade-in">
            <div>
              <h3 className="text-lg font-bold text-white mb-4">Following Users</h3>
-             {followedUsersList.length > 0 ? (
+             {followingUsersData.length > 0 ? (
                <div className="space-y-3">
-                 {followedUsersList.map((u, i) => (
+                 {followingUsersData.map((u, i) => (
                    <div key={i} className="flex items-center justify-between p-4 bg-slate-900/40 border border-slate-800 rounded-lg">
                      <div className="flex items-center gap-3">
                        <div className="h-10 w-10 rounded-full bg-slate-800 overflow-hidden">
-                         {u.avatarUrl ? <img src={u.avatarUrl} className="h-full w-full" /> : <User size={20} className="m-2.5 text-slate-500" />}
+                         {u.avatarUrl ? <img src={u.avatarUrl} className="h-full w-full object-cover" alt={u.name} /> : <User size={20} className="m-2.5 text-slate-500" />}
                        </div>
                        <div>
                          <div className="font-bold text-slate-200">{u.name}</div>

@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { MOCK_POSTS } from '../constants';
+import { api } from '../services/api';
+import { Post } from '../types';
 import { Button } from '../components/ui/Button';
 import { Discussion } from '../components/Discussion';
 import { MarkdownRenderer, MarkdownTheme } from '../utils/markdown';
-import { MessageSquare, ThumbsUp, Share2, Bookmark, ArrowLeft, Type, Minus, Plus, UserPlus, Check, Hash, Users } from 'lucide-react';
+import { ThumbsUp, Share2, Bookmark, ArrowLeft, Type, Minus, Plus, UserPlus, Check, Hash, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
 import { useNotification } from '../components/NotificationProvider';
 
@@ -15,28 +16,56 @@ export const ArticleView: React.FC = () => {
   const { user, updateUser } = useAuth();
   const { addNotification } = useNotification();
   
-  const post = MOCK_POSTS.find(p => p.slug === slug) || MOCK_POSTS[0];
-
-  // Check follow status
-  const isFollowingAuthor = user?.followingUsers.includes(post.authorId) || false;
+  const [post, setPost] = useState<Post | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   // Local interaction state
-  const [liked, setLiked] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [likeCount, setLikeCount] = useState(24);
   
   // Reader Settings State
   const [showSettings, setShowSettings] = useState(false);
-  const [fontSizeIndex, setFontSizeIndex] = useState(1); // 0=sm, 1=base, 2=lg, 3=xl
+  const [fontSizeIndex, setFontSizeIndex] = useState(1);
   const [theme, setTheme] = useState<MarkdownTheme>('dark');
 
-  const handleLike = () => {
-    if (liked) {
-      setLikeCount(c => c - 1);
-    } else {
-      setLikeCount(c => c + 1);
+  useEffect(() => {
+    const fetchPost = async () => {
+      if (!slug) return;
+      const foundPost = await api.posts.get(slug);
+      if (foundPost) {
+        setPost(foundPost);
+      } else {
+        setError(true);
+      }
+      setLoading(false);
+    };
+    fetchPost();
+  }, [slug]);
+
+  const isFollowingAuthor = post && user ? user.followingUsers.includes(post.authorId) : false;
+  
+  // Calculate likes from real data
+  const likes = post?.likes || [];
+  const liked = user ? likes.includes(user.id) : false;
+  const likeCount = likes.length;
+
+  const handleLike = async () => {
+    if (!user) {
+        addNotification({ type: 'info', title: 'Login Required', message: 'Please sign in to like posts.' });
+        return;
     }
-    setLiked(!liked);
+    if (!post) return;
+
+    let newLikes = [...(post.likes || [])];
+    if (liked) {
+        newLikes = newLikes.filter(id => id !== user.id);
+    } else {
+        newLikes.push(user.id);
+    }
+
+    const updatedPost = { ...post, likes: newLikes };
+    setPost(updatedPost); // Optimistic UI
+    await api.posts.update(updatedPost);
   };
 
   const handleShare = () => {
@@ -45,7 +74,7 @@ export const ArticleView: React.FC = () => {
   };
 
   const toggleFollowAuthor = () => {
-    if (!user) {
+    if (!user || !post) {
       navigate('/auth?from=' + window.location.pathname);
       return;
     }
@@ -92,7 +121,6 @@ export const ArticleView: React.FC = () => {
     });
   };
 
-  // --- Theme & Style Config ---
   const themeStyles = {
     dark: {
       container: 'bg-slate-900/20 border-slate-800/50',
@@ -126,6 +154,23 @@ export const ArticleView: React.FC = () => {
   const fontSizes = ['text-sm', 'text-base', 'text-lg', 'text-xl'];
   const currentStyle = themeStyles[theme];
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-slate-500" size={32} /></div>;
+  }
+
+  if (error || !post) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-center space-y-4">
+        <div className="p-4 bg-red-500/10 rounded-full">
+          <AlertTriangle size={48} className="text-red-500" />
+        </div>
+        <h1 className="text-2xl font-bold text-white">Entry Not Found</h1>
+        <p className="text-slate-400">The lab note you are looking for does not exist or has been removed.</p>
+        <Button onClick={() => navigate('/explore')}>Explore Research</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto fade-in pb-32 relative">
        <div className="flex items-center justify-between mb-6 -ml-4">
@@ -137,27 +182,9 @@ export const ArticleView: React.FC = () => {
          >
            <ArrowLeft size={16} className="mr-2" /> Back
          </Button>
-
-         {/* Collaborative Presence Easter Egg */}
-         <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-full px-3 py-1">
-           <div className="flex -space-x-2">
-             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-indigo-500 flex items-center justify-center text-[10px] text-white font-bold">JS</div>
-             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-emerald-500 flex items-center justify-center text-[10px] text-white font-bold">MR</div>
-             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-slate-700 flex items-center justify-center text-[10px] text-white font-bold">+3</div>
-           </div>
-           <span className="text-xs text-slate-500 font-medium ml-1 flex items-center gap-1">
-             <span className="relative flex h-2 w-2">
-               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-             </span>
-             Live
-           </span>
-         </div>
        </div>
 
-       {/* Dynamic Article Container */}
        <article className={`rounded-2xl border overflow-hidden mb-12 transition-colors duration-300 ${currentStyle.container}`}>
-         {/* Header */}
          <div className={`p-8 md:p-12 ${currentStyle.header}`}>
            <div className="flex gap-2 mb-6 flex-wrap">
              {post.tags.map((tag: any) => {
@@ -196,7 +223,7 @@ export const ArticleView: React.FC = () => {
                  <img 
                    src={post.author.avatarUrl} 
                    alt={post.author.name} 
-                   className="w-12 h-12 rounded-full ring-2 ring-slate-800 group-hover:ring-primary transition-all"
+                   className="w-12 h-12 rounded-full ring-2 ring-slate-800 group-hover:ring-primary transition-all object-cover"
                  />
                  <div>
                    <div className={`font-medium flex items-center gap-2 group-hover:text-primary transition-colors ${currentStyle.metaPrimary}`}>
@@ -232,20 +259,17 @@ export const ArticleView: React.FC = () => {
            </div>
          </div>
 
-         {/* Body with Dynamic Font and Text Color */}
          <div className={`p-8 md:p-12 max-w-3xl mx-auto ${currentStyle.text} ${fontSizes[fontSizeIndex]}`}>
            <MarkdownRenderer content={post.content} theme={theme} />
          </div>
        </article>
 
-       {/* Discussion Section */}
        <div className="mt-16" id="discussion">
          <Discussion postId={post.id} />
        </div>
 
        {/* Action Bar */}
        <div className="sticky bottom-8 mt-8 mx-auto max-w-fit z-20 flex flex-col items-center gap-4">
-         {/* Settings Popover */}
          {showSettings && (
            <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-2xl shadow-black w-64 animate-in slide-in-from-bottom-5 fade-in duration-200 mb-2">
              <div className="mb-4">
@@ -310,15 +334,6 @@ export const ArticleView: React.FC = () => {
            </span>
            
            <div className="w-px h-6 bg-slate-800 mx-2"></div>
-           
-           <Button 
-             variant="ghost" 
-             className="rounded-full h-14 w-14 p-0 text-slate-400 hover:text-primary hover:bg-primary/10"
-             onClick={() => document.getElementById('discussion')?.scrollIntoView({ behavior: 'smooth' })}
-             title="Comments"
-           >
-             <MessageSquare size={24} />
-           </Button>
            
            <Button 
              variant="ghost" 

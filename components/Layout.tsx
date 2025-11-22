@@ -31,47 +31,6 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
-  // Simulate smart notifications based on user interest
-  useEffect(() => {
-    if (!user) return;
-
-    // Simulate a notification 5 seconds after login/load
-    const timer1 = setTimeout(() => {
-      addNotification({
-        type: 'info',
-        title: 'New Research Alert',
-        message: 'A new paper on "Real-time DSP in Rust" matches your expertise.',
-        duration: 8000
-      });
-    }, 5000);
-
-    // Simulate a social interaction 15 seconds later
-    const timer2 = setTimeout(() => {
-      addNotification({
-        type: 'success',
-        title: 'Sarah Jenkins replied',
-        message: 'Sarah commented on your thread "Optimizing AudioWorklets": "Totally agree, checking the buffer size..."',
-        duration: 6000
-      });
-    }, 20000);
-
-    // Simulate new follower
-    const timer3 = setTimeout(() => {
-      addNotification({
-        type: 'info',
-        title: 'New Follower',
-        message: 'Dr. Aris Thorne started following your work.',
-        duration: 5000
-      });
-    }, 12000);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, [user, addNotification]);
-
   const isActive = (path: string) => {
     return location.pathname.startsWith(path) 
       ? "text-primary bg-indigo-500/10" 

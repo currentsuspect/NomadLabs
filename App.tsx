@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { MemoryRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -9,8 +10,8 @@ import { AdminView } from './views/AdminView';
 import { AboutView } from './views/AboutView';
 import { EditorView } from './views/EditorView';
 import { UserProfileView } from './views/UserProfileView';
-import { ComingSoonView } from './views/ComingSoonView';
 import { AuthView } from './views/AuthView';
+import { GuidelinesView, FellowshipsView, SubmitResearchView } from './views/StaticViews';
 import { AuthProvider } from './components/AuthProvider';
 import { NotificationProvider } from './components/NotificationProvider';
 import { api } from './services/api';
@@ -21,7 +22,7 @@ const ScrollToTop = () => {
     try {
       window.scrollTo(0, 0);
     } catch (e) {
-      // Ignore scroll errors in strict sandboxed environments
+      // Ignore scroll errors
     }
   }, [pathname]);
   return null;
@@ -50,10 +51,9 @@ const App: React.FC = () => {
               <Route path="/profile/:userId" element={<UserProfileView />} />
               <Route path="/about" element={<AboutView />} />
               
-              {/* Placeholder Routes */}
-              <Route path="/guidelines" element={<ComingSoonView />} />
-              <Route path="/submit-research" element={<ComingSoonView />} />
-              <Route path="/fellowships" element={<ComingSoonView />} />
+              <Route path="/guidelines" element={<GuidelinesView />} />
+              <Route path="/submit-research" element={<SubmitResearchView />} />
+              <Route path="/fellowships" element={<FellowshipsView />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

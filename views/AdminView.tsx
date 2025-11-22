@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNotification } from '../components/NotificationProvider';
-import { ShieldAlert, Users, FileText, Settings, Activity, Search, Trash2, Edit, Plus, X, Save, Layout, Star, Pin, Check, BarChart3, Globe, Lock } from 'lucide-react';
+import { ShieldAlert, Users, FileText, Settings, Activity, Search, Trash2, Edit, Plus, X, Save, Layout, Star, Pin, Check, BarChart3, Globe, Lock, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { MOCK_POSTS } from '../constants';
+import { api } from '../services/api';
 import { Post, PostStatus, Tag } from '../types';
 
 export const AdminView: React.FC = () => {
@@ -11,10 +12,25 @@ export const AdminView: React.FC = () => {
   const { addNotification } = useNotification();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'cms' | 'users' | 'settings'>('dashboard');
   
-  // Local state for managing posts (simulating DB updates)
-  const [posts, setPosts] = useState(MOCK_POSTS);
+  // State for managing posts
+  const [posts, setPosts] = useState<Post[]>([]);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real data on mount
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      refreshData();
+    }
+  }, [user]);
+
+  const refreshData = async () => {
+    setLoading(true);
+    const data = await api.posts.list();
+    setPosts(data);
+    setLoading(false);
+  };
 
   if (!user || user.role !== 'ADMIN') {
     return (
@@ -37,28 +53,36 @@ export const AdminView: React.FC = () => {
     });
   };
 
-  const toggleFeatured = (id: string) => {
-    setPosts(posts.map(p => {
-      if (p.id === id) {
-        // If we are featuring this one, unfeature others if we want single featured behavior, 
-        // but for now let's assume multiple can be flagged but logic picks first.
-        return { ...p, featured: !p.featured };
-      }
-      // Optional: Unfeature others to enforce single hero
-      // if (p.featured) return { ...p, featured: false };
-      return p;
-    }));
+  const toggleFeatured = async (id: string) => {
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+    
+    const updatedPost = { ...post, featured: !post.featured };
+    
+    // Optimistic update
+    setPosts(posts.map(p => p.id === id ? updatedPost : p));
+    
+    await api.posts.update(updatedPost);
     addNotification({ type: 'info', title: 'Layout Updated', message: 'Homepage priority updated.' });
   };
 
-  const togglePinned = (id: string) => {
-    setPosts(posts.map(p => p.id === id ? { ...p, pinned: !p.pinned } : p));
+  const togglePinned = async (id: string) => {
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+
+    const updatedPost = { ...post, pinned: !post.pinned };
+    setPosts(posts.map(p => p.id === id ? updatedPost : p));
+    
+    await api.posts.update(updatedPost);
     addNotification({ type: 'info', title: 'Layout Updated', message: 'List priority updated.' });
   };
 
-  const handleSavePost = () => {
+  const handleSavePost = async () => {
     if (!editingPost) return;
+    
     setPosts(posts.map(p => p.id === editingPost.id ? editingPost : p));
+    await api.posts.update(editingPost);
+    
     setEditingPost(null);
     addNotification({
       type: 'success',
@@ -67,9 +91,11 @@ export const AdminView: React.FC = () => {
     });
   };
 
-  const handleDeletePost = (id: string) => {
+  const handleDeletePost = async (id: string) => {
     if (window.confirm('CONFIRM DELETION: This action is irreversible.')) {
       setPosts(posts.filter(p => p.id !== id));
+      await api.posts.delete(id);
+      
       addNotification({
         type: 'warning',
         title: 'Content Removed',
@@ -115,8 +141,8 @@ export const AdminView: React.FC = () => {
                <div className="h-full bg-emerald-500 w-[34%]"></div>
              </div>
              <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
-               <span>34% USED</span>
-               <span>2.4GB / 7GB</span>
+               <span>LOCAL STORAGE</span>
+               <span>PERSISTENT</span>
              </div>
            </div>
         </div>
@@ -131,8 +157,8 @@ export const AdminView: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-6">System Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {[
-                { label: 'Active Sessions', val: '42', icon: Users, color: 'text-sky-400' },
-                { label: 'Request Rate', val: '128ms', icon: Activity, color: 'text-emerald-400' },
+                { label: 'Active Sessions', val: '1', icon: Users, color: 'text-sky-400' },
+                { label: 'Request Rate', val: '24ms', icon: Activity, color: 'text-emerald-400' },
                 { label: 'Total Content', val: posts.length.toString(), icon: FileText, color: 'text-indigo-400' }
               ].map((stat, i) => (
                 <div key={i} className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex items-center justify-between">
@@ -185,80 +211,89 @@ export const AdminView: React.FC = () => {
                     className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-1 focus:ring-primary w-64"
                   />
                 </div>
-                <Button size="sm"><Plus size={14} className="mr-2" /> Create New</Button>
+                <Button size="sm" onClick={refreshData} title="Refresh Data"><Activity size={14} className="mr-2" /> Refresh</Button>
               </div>
             </div>
 
             <div className="flex-1 overflow-auto">
-              <table className="w-full text-left text-sm text-slate-400">
-                <thead className="bg-slate-950/80 text-slate-500 font-mono text-[10px] uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
-                  <tr>
-                    <th className="px-6 py-3">Priority</th>
-                    <th className="px-6 py-3">Content Entity</th>
-                    <th className="px-6 py-3">Author</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3 text-right">Controls</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                  {filteredPosts.map((post) => (
-                    <tr key={post.id} className="hover:bg-slate-800/30 group transition-colors">
-                      <td className="px-6 py-4">
-                         <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => toggleFeatured(post.id)}
-                              title="Toggle Featured (Hero)"
-                              className={`p-1.5 rounded transition-colors ${post.featured ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/40' : 'bg-slate-800 text-slate-600 hover:text-slate-400'}`}
-                            >
-                              <Star size={14} className={post.featured ? "fill-current" : ""} />
-                            </button>
-                            <button 
-                              onClick={() => togglePinned(post.id)}
-                              title="Toggle Pinned (Top of List)"
-                              className={`p-1.5 rounded transition-colors ${post.pinned ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/40' : 'bg-slate-800 text-slate-600 hover:text-slate-400'}`}
-                            >
-                              <Pin size={14} className={post.pinned ? "fill-current" : ""} />
-                            </button>
-                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-200">{post.title}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 font-mono truncate max-w-[300px]">/{post.slug}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                           <div className="h-5 w-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-white font-bold">
-                             {post.author.name.charAt(0)}
-                           </div>
-                           {post.author.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
-                           post.status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
-                         }`}>
-                           {post.status}
-                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => setEditingPost(post)} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
-                             <Edit size={14} />
-                           </button>
-                           <button onClick={() => handleDeletePost(post.id)} className="p-2 hover:bg-red-900/30 rounded-full text-slate-400 hover:text-red-400 transition-colors">
-                             <Trash2 size={14} />
-                           </button>
-                        </div>
-                      </td>
+              {loading ? (
+                 <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-500" /></div>
+              ) : filteredPosts.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                   <FileText size={48} className="mb-4 opacity-20" />
+                   <p>Database is empty.</p>
+                 </div>
+              ) : (
+                <table className="w-full text-left text-sm text-slate-400">
+                  <thead className="bg-slate-950/80 text-slate-500 font-mono text-[10px] uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                    <tr>
+                      <th className="px-6 py-3">Priority</th>
+                      <th className="px-6 py-3">Content Entity</th>
+                      <th className="px-6 py-3">Author</th>
+                      <th className="px-6 py-3">Status</th>
+                      <th className="px-6 py-3 text-right">Controls</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {filteredPosts.map((post) => (
+                      <tr key={post.id} className="hover:bg-slate-800/30 group transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => toggleFeatured(post.id)}
+                                title="Toggle Featured (Hero)"
+                                className={`p-1.5 rounded transition-colors ${post.featured ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/40' : 'bg-slate-800 text-slate-600 hover:text-slate-400'}`}
+                              >
+                                <Star size={14} className={post.featured ? "fill-current" : ""} />
+                              </button>
+                              <button 
+                                onClick={() => togglePinned(post.id)}
+                                title="Toggle Pinned (Top of List)"
+                                className={`p-1.5 rounded transition-colors ${post.pinned ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/40' : 'bg-slate-800 text-slate-600 hover:text-slate-400'}`}
+                              >
+                                <Pin size={14} className={post.pinned ? "fill-current" : ""} />
+                              </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-200">{post.title}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 font-mono truncate max-w-[300px]">/{post.slug}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="h-5 w-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-white font-bold">
+                              {post.author.name.charAt(0)}
+                            </div>
+                            {post.author.name}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                            post.status === 'PUBLISHED' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                          }`}>
+                            {post.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setEditingPost(post)} className="p-2 hover:bg-slate-700 rounded-full text-slate-400 hover:text-white transition-colors">
+                              <Edit size={14} />
+                            </button>
+                            <button onClick={() => handleDeletePost(post.id)} className="p-2 hover:bg-red-900/30 rounded-full text-slate-400 hover:text-red-400 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
 
-        {/* Placeholder for Users/Settings to keep code valid but concise */}
+        {/* Placeholder for Users/Settings */}
         {(activeTab === 'users' || activeTab === 'settings') && (
            <div className="flex items-center justify-center h-full text-slate-500">
              <div className="text-center">
