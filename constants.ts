@@ -3,7 +3,7 @@
 // System configuration and global constants
 
 export const APP_NAME = "NomadLabs";
-export const APP_DESCRIPTION = "A high-performance research lab and knowledge hub for music technology, DSP, and audio engineering.";
+export const APP_DESCRIPTION = "create like the silence is watching";
 export const API_VERSION = "v1";
 
 // Empty constraints to prevent import errors during refactor if any files were missed

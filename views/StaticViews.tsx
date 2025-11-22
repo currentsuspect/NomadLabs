@@ -66,7 +66,7 @@ export const FellowshipsView: React.FC = () => (
           </p>
           <ul className="space-y-2 mb-8 text-sm text-slate-300">
             <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> $5,000 - $15,000 Grant</li>
-            <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> 3-6 Month Duration</li>
+            <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> 3-6 Months Duration</li>
             <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> Technical Mentorship</li>
           </ul>
           <Button className="w-full">Apply for Track A</Button>
@@ -85,7 +85,7 @@ export const FellowshipsView: React.FC = () => (
           </p>
           <ul className="space-y-2 mb-8 text-sm text-slate-300">
             <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> $5,000 - $20,000 Grant</li>
-            <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> 6-12 Month Duration</li>
+            <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> 6-12 Months Duration</li>
             <li className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> Exhibition Support</li>
           </ul>
           <Button className="w-full">Apply for Track B</Button>

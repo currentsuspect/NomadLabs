@@ -17,11 +17,13 @@ export const AdminView: React.FC = () => {
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [storageUsage, setStorageUsage] = useState({ used: 0, total: 5242880, percent: 0 }); // 5MB default quota
 
   // Fetch real data on mount
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       refreshData();
+      calculateStorage();
     }
   }, [user]);
 
@@ -30,6 +32,17 @@ export const AdminView: React.FC = () => {
     const data = await api.posts.list();
     setPosts(data);
     setLoading(false);
+  };
+
+  const calculateStorage = () => {
+    let used = 0;
+    for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+            used += ((localStorage[key].length + key.length) * 2);
+        }
+    }
+    const percent = Math.min(100, Math.round((used / 5242880) * 100));
+    setStorageUsage({ used, total: 5242880, percent });
   };
 
   if (!user || user.role !== 'ADMIN') {
@@ -89,6 +102,7 @@ export const AdminView: React.FC = () => {
       title: 'Database Updated',
       message: `Entry "${editingPost.slug}" modified successfully.`
     });
+    calculateStorage(); // Recalculate after save
   };
 
   const handleDeletePost = async (id: string) => {
@@ -101,6 +115,7 @@ export const AdminView: React.FC = () => {
         title: 'Content Removed',
         message: 'Record purged from database.'
       });
+      calculateStorage(); // Recalculate after delete
     }
   };
 
@@ -136,9 +151,15 @@ export const AdminView: React.FC = () => {
         
         <div className="mt-8 px-4">
            <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-             <h3 className="text-xs font-bold text-white mb-2">Storage Usage</h3>
+             <div className="flex justify-between items-center mb-2">
+               <h3 className="text-xs font-bold text-white">Storage Usage</h3>
+               <span className="text-[10px] text-slate-400">{(storageUsage.used / 1024).toFixed(1)}KB / 5MB</span>
+             </div>
              <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-               <div className="h-full bg-emerald-500 w-[34%]"></div>
+               <div 
+                  className={`h-full transition-all duration-1000 ${storageUsage.percent > 80 ? 'bg-red-500' : 'bg-emerald-500'}`} 
+                  style={{ width: `${Math.max(2, storageUsage.percent)}%` }}
+               ></div>
              </div>
              <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
                <span>LOCAL STORAGE</span>
@@ -182,6 +203,7 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
               <div className="h-48 flex items-end gap-2">
+                 {/* Simulated visualization for client-side demo */}
                  {[30, 45, 35, 60, 55, 70, 80, 65, 50, 75, 90, 60].map((h, i) => (
                    <div key={i} className="flex-1 bg-indigo-500/20 hover:bg-indigo-500/40 transition-colors rounded-t-sm relative group" style={{ height: `${h}%` }}>
                       <div className="absolute bottom-0 w-full h-1 bg-indigo-500/50"></div>

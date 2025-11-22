@@ -57,14 +57,15 @@ const CommentItem: React.FC<{
       return;
     }
     
-    let newReactions = [...reactions];
-    const existingIdx = newReactions.findIndex(r => r.userId === user.id && r.type === type);
+    // Check if user already has THIS specific reaction
+    const isTogglingOff = reactions.some(r => r.userId === user.id && r.type === type);
+
+    // Filter out ANY reaction by this user (mutual exclusivity)
+    // This ensures a user can only have one reaction at a time (e.g. Like OR Fire)
+    let newReactions = reactions.filter(r => r.userId !== user.id);
     
-    if (existingIdx >= 0) {
-      // Remove reaction
-      newReactions.splice(existingIdx, 1);
-    } else {
-      // Add reaction
+    // If we aren't just turning off the existing one, add the new one
+    if (!isTogglingOff) {
       newReactions.push({ userId: user.id, type });
     }
     
@@ -220,12 +221,7 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
       replies: []
     };
 
-    // We need to find the parent and update it. 
-    // Note: Deep nesting update in flat storage is tricky. 
-    // For this demo, we assume we can find top-level comments. 
-    // If the parent is a nested reply, we'd need a recursive search.
-    
-    // Simplified: Updates local state and persists top-level modified comment
+    // Simplified recursive update
     const addReplyRecursive = (list: Comment[]): { updated: Comment[], modified?: Comment } => {
       let modifiedComment: Comment | undefined;
       const updatedList = list.map(c => {
@@ -238,7 +234,7 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
           const { updated: childList, modified } = addReplyRecursive(c.replies);
           if (modified) {
             const updated = { ...c, replies: childList };
-            modifiedComment = updated; // Propagate up (simplified, actually needs to propagate root)
+            modifiedComment = updated;
             return updated;
           }
         }
@@ -249,25 +245,8 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
 
     const { updated, modified } = addReplyRecursive(comments);
     setComments(updated);
-
-    // If we found the comment to update in our list (which contains only this post's comments)
-    // We need to update that specific comment in the global storage.
-    // Since api.comments.update updates by ID, if we update the root comment that contains the reply, it works.
-    // But if we update a child, our API is flat.
-    // Assumption for this demo: We only persist root comments to the flat 'comments' list if they are roots.
-    // Actually, `api.comments.create` pushed to a flat list.
-    // If we support nesting, we should probably just push the reply as a flat comment with a `parentId` reference.
-    // But `Comment` type uses `replies: Comment[]`.
-    // To keep "no mock data" promise and simpler architecture:
-    // We will NOT persist replies recursively in the flat list for this demo unless we refactor the whole comment system to be relational.
-    // Compromise: We push the reply to the `replies` array of the parent and update the parent.
     
     if (modified) {
-       // We need to find the ROOT parent of this modified comment to update it in storage.
-       // Since `addReplyRecursive` propagates modification, `modified` here is actually the direct parent.
-       // If it was nested, we'd need to walk up.
-       // For simplicity in this version: Single level nesting works best or flat structure.
-       // Let's just update the modified comment.
        await api.comments.update(modified);
     }
   };

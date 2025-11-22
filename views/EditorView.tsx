@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 import { useNotification } from '../components/NotificationProvider';
 import { Button } from '../components/ui/Button';
 import { MarkdownRenderer } from '../utils/markdown';
-import { ArrowLeft, Save, Image as ImageIcon, Code, MoreVertical, Eye, Edit3, FileText, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Save, Image as ImageIcon, Code, MoreVertical, Eye, Edit3, FileText, ChevronRight, Minus } from 'lucide-react';
 import { api } from '../services/api';
 import { Post, PostStatus, PostType } from '../types';
 
@@ -13,6 +13,7 @@ export const EditorView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addNotification } = useNotification();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   const [title, setTitle] = useState('');
   const [content, setContent] = useState(''); 
@@ -24,6 +25,40 @@ export const EditorView: React.FC = () => {
     setContent(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = e.target.scrollHeight + 'px';
+  };
+
+  const insertAtCursor = (textToInsert: string) => {
+    if (!textareaRef.current) return;
+    
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    const text = content;
+    const newText = text.substring(0, start) + textToInsert + text.substring(end);
+    
+    setContent(newText);
+    
+    // Restore cursor position (after insertion)
+    setTimeout(() => {
+        if (textareaRef.current) {
+            textareaRef.current.focus();
+            textareaRef.current.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
+        }
+    }, 0);
+  };
+
+  const handleImageClick = () => {
+    const url = prompt("Enter image URL:", "https://");
+    if (url) {
+        insertAtCursor(`\n![Image Description](${url})\n`);
+    }
+  };
+
+  const handleCodeClick = () => {
+    insertAtCursor(`\n\`\`\`javascript\n// Your code here\nconsole.log('Hello World');\n\`\`\`\n`);
+  };
+
+  const handleDividerClick = () => {
+    insertAtCursor(`\n---\n`);
   };
 
   const handleSave = async (status: PostStatus) => {
@@ -183,12 +218,31 @@ export const EditorView: React.FC = () => {
                 />
 
                 <div className="absolute left-0 top-24 -ml-12 hidden xl:flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="h-8 w-8 rounded flex items-center justify-center bg-slate-800/50 text-slate-500 text-xs font-bold border border-slate-700" title="Add Block">+</div>
-                    <div className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" title="Image"><ImageIcon size={16} /></div>
-                    <div className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" title="Code"><Code size={16} /></div>
+                    <button 
+                        onClick={handleDividerClick}
+                        className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors border border-transparent hover:border-slate-700" 
+                        title="Add Divider"
+                    >
+                        <Minus size={16} />
+                    </button>
+                    <button 
+                        onClick={handleImageClick}
+                        className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" 
+                        title="Insert Image URL"
+                    >
+                        <ImageIcon size={16} />
+                    </button>
+                    <button 
+                        onClick={handleCodeClick}
+                        className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" 
+                        title="Insert Code Block"
+                    >
+                        <Code size={16} />
+                    </button>
                 </div>
 
                 <textarea
+                ref={textareaRef}
                 className="w-full bg-transparent border-none text-lg text-slate-300 leading-relaxed focus:outline-none resize-none min-h-[60vh] placeholder:text-slate-700"
                 value={content}
                 onChange={handleContentChange}
@@ -200,10 +254,9 @@ Use markdown shortcuts:
 - \`code\` for inline code`}
                 spellCheck={false}
                 style={{ height: 'auto' }} 
-                ref={(ref) => {
-                    if (ref && ref.style.height === 'auto') {
-                        ref.style.height = ref.scrollHeight + 'px';
-                    }
+                onInput={(e: any) => {
+                    e.target.style.height = 'auto';
+                    e.target.style.height = e.target.scrollHeight + 'px';
                 }}
                 />
             </>
