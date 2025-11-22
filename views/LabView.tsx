@@ -1,19 +1,44 @@
+
 import React from 'react';
-import { MOCK_POSTS } from '../constants';
+import { MOCK_POSTS, MOCK_COMMENTS } from '../constants';
 import { Button } from '../components/ui/Button';
-import { PenTool, TrendingUp, MessageCircle, ArrowRight, FlaskConical } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { PenTool, TrendingUp, MessageCircle, ArrowRight, FlaskConical, Activity } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 
 export const LabView: React.FC = () => {
   const notes = MOCK_POSTS.filter(p => p.type === 'LAB_NOTE' || p.type === 'ARTICLE');
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Calculate real stats from "database"
+  const activeExperiments = MOCK_POSTS.length;
+  const totalComments = MOCK_COMMENTS.reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+  
+  // Extract trending tags dynamically
+  const allTags = MOCK_POSTS.flatMap(p => p.tags);
+  const tagCounts = allTags.reduce((acc, tag) => {
+    acc[tag.name] = (acc[tag.name] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const trendingTags = Object.entries(tagCounts)
+    .sort(([,a], [,b]) => b - a)
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const handleCreateClick = () => {
+    if (user) {
+      navigate('/lab/new');
+    } else {
+      navigate('/auth?from=/lab/new');
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto fade-in">
       {/* Page Header */}
-      <div className="mb-10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+      <div className="mb-8">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
              <h1 className="text-3xl font-bold text-white mb-3 flex items-center gap-3">
                <FlaskConical className="text-emerald-500" size={32} />
@@ -24,21 +49,44 @@ export const LabView: React.FC = () => {
                Like a communal lab notebook for open science.
              </p>
           </div>
-          {user && (
-            <Link to="/lab/new" className="flex-shrink-0">
-              <Button className="shadow-lg shadow-indigo-500/20">
-                <PenTool size={16} className="mr-2" /> New Entry
-              </Button>
-            </Link>
-          )}
+          <div className="flex-shrink-0">
+            <Button className="shadow-lg shadow-indigo-500/20" onClick={handleCreateClick}>
+              <PenTool size={16} className="mr-2" /> {user ? 'New Entry' : 'Sign in to Post'}
+            </Button>
+          </div>
         </div>
         
-        {/* Stats / Ticker (Visual Flair) */}
-        <div className="flex gap-8 py-4 border-y border-slate-800 text-xs font-mono text-slate-500 overflow-x-auto">
-          <span className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div> 12 active experiments</span>
-          <span className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-indigo-500"></div> 483 comments today</span>
-          <span className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-orange-500"></div> WASM Audio Worklet</span>
-          <span className="flex items-center gap-2"><div className="h-2 w-2 rounded-full bg-sky-500"></div> GPU Compute</span>
+        {/* Dynamic Data Ticker */}
+        <div className="flex flex-wrap items-center gap-6 py-3 px-4 border-y border-slate-800 bg-slate-900/20 rounded-lg backdrop-blur-sm text-xs font-mono text-slate-400">
+          <div className="flex items-center gap-2 text-slate-300">
+            <div className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </div>
+            <span className="font-bold text-white">{activeExperiments}</span> Entries in Database
+          </div>
+
+          <div className="h-4 w-px bg-slate-800 hidden sm:block"></div>
+
+          <div className="flex items-center gap-2">
+            <Activity size={14} className="text-indigo-400" />
+            <span className="font-bold text-white">{totalComments}</span> Global Comments
+          </div>
+
+          <div className="h-4 w-px bg-slate-800 hidden sm:block"></div>
+
+          <div className="flex items-center gap-3 overflow-hidden">
+            <span className="flex items-center gap-1.5 text-slate-500 uppercase tracking-wider font-bold text-[10px]">
+              <TrendingUp size={12} /> Trending:
+            </span>
+            <div className="flex gap-2">
+              {trendingTags.map(tag => (
+                <span key={tag} className="flex items-center text-indigo-300 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -86,10 +134,10 @@ export const LabView: React.FC = () => {
                    
                    <div className="flex gap-4 text-slate-500 text-xs font-medium">
                       <span className="flex items-center gap-1 hover:text-pink-500 transition-colors cursor-pointer">
-                        <TrendingUp size={14} /> 24
+                        <TrendingUp size={14} /> {Math.floor(Math.random() * 50) + 10}
                       </span>
                       <span className="flex items-center gap-1 hover:text-indigo-400 transition-colors cursor-pointer">
-                        <MessageCircle size={14} /> 8
+                        <MessageCircle size={14} /> {Math.floor(Math.random() * 10)}
                       </span>
                    </div>
                  </div>
@@ -103,26 +151,21 @@ export const LabView: React.FC = () => {
           {/* Community Pulse */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <TrendingUp size={16} className="text-orange-500" /> Trending Now
+              <Activity size={16} className="text-orange-500" /> Live Activity
             </h3>
             <ul className="space-y-4">
-              <li className="group cursor-pointer">
+              {/* Mocking live activity for the 'advanced' feel since we don't have a real socket feed */}
+              <li className="group cursor-pointer relative pl-4 border-l-2 border-slate-800 hover:border-indigo-500 transition-colors">
                 <div className="text-sm font-medium text-slate-300 group-hover:text-primary transition-colors">
                   Rust vs C++ for DSP
                 </div>
-                <div className="text-xs text-slate-500 mt-1">128 comments • 4h ago</div>
+                <div className="text-xs text-slate-500 mt-1">New comment • 4m ago</div>
               </li>
-              <li className="group cursor-pointer">
-                <div className="text-sm font-medium text-slate-300 group-hover:text-primary transition-colors">
-                  WebGPU Compute Shaders for FFT
+              <li className="group cursor-pointer relative pl-4 border-l-2 border-slate-800 hover:border-emerald-500 transition-colors">
+                <div className="text-sm font-medium text-slate-300 group-hover:text-emerald-400 transition-colors">
+                  WebGPU Compute Shaders
                 </div>
-                <div className="text-xs text-slate-500 mt-1">85 comments • 2h ago</div>
-              </li>
-              <li className="group cursor-pointer">
-                <div className="text-sm font-medium text-slate-300 group-hover:text-primary transition-colors">
-                  Latency issues in Chrome 118
-                </div>
-                <div className="text-xs text-slate-500 mt-1">42 comments • 1d ago</div>
+                <div className="text-xs text-slate-500 mt-1">New experiment • 2h ago</div>
               </li>
             </ul>
           </div>
@@ -133,11 +176,14 @@ export const LabView: React.FC = () => {
             <p className="text-sm text-slate-400 mb-4">
               Working on something cool? Don't wait for the final paper. Share early results and get feedback.
             </p>
-            <Link to="/lab/new">
-              <Button variant="outline" size="sm" className="w-full border-indigo-500/30 hover:bg-indigo-500/10 text-indigo-300">
-                Start a Log <ArrowRight size={14} className="ml-2" />
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="w-full border-indigo-500/30 hover:bg-indigo-500/10 text-indigo-300"
+              onClick={handleCreateClick}
+            >
+              {user ? 'Start a Log' : 'Sign in to Share'} <ArrowRight size={14} className="ml-2" />
+            </Button>
           </div>
         </div>
       </div>

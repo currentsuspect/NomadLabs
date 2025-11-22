@@ -1,3 +1,4 @@
+
 import { Post, PostType, PostStatus, UserRole, User, Comment } from './types';
 
 export const MOCK_USER: User = {
@@ -7,7 +8,9 @@ export const MOCK_USER: User = {
   role: UserRole.ADMIN, // Changed to ADMIN to show the panel
   expertise: ['DSP', 'Rust', 'WASM', 'React'], // Added React to trigger recommendations
   avatarUrl: 'https://picsum.photos/seed/alex/200/200',
-  bio: 'Audio systems engineer specializing in low-latency web audio.'
+  bio: 'Audio systems engineer specializing in low-latency web audio.',
+  followingUsers: ['u2', 'u5'], // Following Sarah Jenkins and Dr. Aris Thorne
+  followingTags: ['WASM', 'DSP'] // Following specific topics
 };
 
 export const MOCK_POSTS: Post[] = [
@@ -62,7 +65,9 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
       { id: 't3', name: 'Rust', slug: 'rust', type: 'STACK' }
     ],
     version: '1.2.0',
-    citations: 14
+    citations: 14,
+    featured: true,
+    pinned: false
   },
   {
     id: 'p2',
@@ -71,7 +76,7 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
     subtitle: 'Techniques for 60fps canvas drawing without blocking the main thread.',
     type: PostType.ARTICLE,
     status: PostStatus.PUBLISHED,
-    author: { ...MOCK_USER, name: 'Sarah Jenkins', id: 'u2' },
+    author: { ...MOCK_USER, name: 'Sarah Jenkins', id: 'u2', followingUsers: [], followingTags: [] },
     authorId: 'u2',
     content: '...',
     publishedAt: '2023-11-02',
@@ -79,7 +84,9 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
     tags: [
       { id: 't4', name: 'React', slug: 'react', type: 'STACK' },
       { id: 't5', name: 'Canvas', slug: 'canvas', type: 'TECH' }
-    ]
+    ],
+    featured: false,
+    pinned: true
   },
   {
     id: 'p3',
@@ -94,7 +101,9 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
     readTimeMinutes: 2,
     tags: [
       { id: 't2', name: 'DSP', slug: 'dsp', type: 'TOPIC' }
-    ]
+    ],
+    featured: false,
+    pinned: false
   },
   {
     id: 'p4',
@@ -103,7 +112,7 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
     subtitle: 'Using small language models to generate MIDI sequences in real-time.',
     type: PostType.PAPER,
     status: PostStatus.PUBLISHED,
-    author: { ...MOCK_USER, name: 'Dr. Aris Thorne', id: 'u5' },
+    author: { ...MOCK_USER, name: 'Dr. Aris Thorne', id: 'u5', followingUsers: [], followingTags: [] },
     authorId: 'u5',
     content: '...',
     abstract: 'An exploration of attention mechanisms applied to symbolic music generation, optimized for edge devices.',
@@ -113,14 +122,32 @@ Initial tests show a 400% performance improvement over pure JavaScript implement
       { id: 't6', name: 'AI', slug: 'ai', type: 'TOPIC' },
       { id: 't7', name: 'Python', slug: 'python', type: 'STACK' }
     ],
-    version: '0.9.0'
+    version: '0.9.0',
+    featured: false,
+    pinned: false
+  },
+  {
+    id: 'draft1',
+    slug: 'neural-synthesis-wip',
+    title: 'WIP: Neural Audio Synthesis',
+    subtitle: 'Notes on implementing DiffWave in PyTorch for real-time inference.',
+    type: PostType.LAB_NOTE,
+    status: PostStatus.DRAFT,
+    author: MOCK_USER,
+    authorId: 'u1',
+    content: '# Introduction\n\nExploring the latent space of diffusion models for snare drum synthesis.',
+    publishedAt: 'Draft',
+    readTimeMinutes: 5,
+    tags: [],
+    featured: false,
+    pinned: false
   }
 ];
 
 export const MOCK_COMMENTS: Comment[] = [
   {
     id: 'c1',
-    author: { ...MOCK_USER, name: 'Marcus V', id: 'u3', avatarUrl: undefined },
+    author: { ...MOCK_USER, name: 'Marcus V', id: 'u3', avatarUrl: undefined, followingUsers: [], followingTags: [] },
     content: 'Have you considered using a lock-free circular buffer for the grain scheduling? I found it reduces jitter significantly in Chrome.',
     createdAt: '2 hours ago',
     reactions: [
@@ -141,7 +168,7 @@ export const MOCK_COMMENTS: Comment[] = [
   },
   {
     id: 'c3',
-    author: { ...MOCK_USER, name: 'Elena R', id: 'u4', avatarUrl: undefined },
+    author: { ...MOCK_USER, name: 'Elena R', id: 'u4', avatarUrl: undefined, followingUsers: [], followingTags: [] },
     content: 'The benchmarks on Firefox seem a bit low. Are you using SIMD instructions in the Rust compilation profile?',
     createdAt: '5 hours ago',
     reactions: [

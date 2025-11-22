@@ -1,3 +1,4 @@
+
 // Enums matching the planned Prisma Schema
 export enum UserRole {
   GUEST = 'GUEST',
@@ -29,6 +30,8 @@ export interface User {
   role: UserRole;
   expertise: string[];
   bio?: string;
+  followingUsers: string[]; // IDs of users being followed
+  followingTags: string[];  // Names of tags being followed
 }
 
 export interface Tag {
@@ -56,6 +59,9 @@ export interface Post {
   abstract?: string;
   version?: string;
   citations?: number;
+  // CMS Control Flags
+  featured?: boolean; // Determines if it appears in the Hero section
+  pinned?: boolean;   // Determines if it sticks to the top of lists
 }
 
 export type ReactionType = 'LIKE' | 'FIRE' | 'BRAIN' | 'ROCKET';

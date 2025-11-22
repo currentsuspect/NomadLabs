@@ -1,15 +1,24 @@
+
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { MOCK_POSTS } from '../constants';
 import { Button } from '../components/ui/Button';
 import { Discussion } from '../components/Discussion';
 import { MarkdownRenderer, MarkdownTheme } from '../utils/markdown';
-import { MessageSquare, ThumbsUp, Share2, Bookmark, ArrowLeft, Type, Minus, Plus } from 'lucide-react';
+import { MessageSquare, ThumbsUp, Share2, Bookmark, ArrowLeft, Type, Minus, Plus, UserPlus, Check, Hash, Users } from 'lucide-react';
+import { useAuth } from '../components/AuthProvider';
+import { useNotification } from '../components/NotificationProvider';
 
 export const ArticleView: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { user, updateUser } = useAuth();
+  const { addNotification } = useNotification();
+  
   const post = MOCK_POSTS.find(p => p.slug === slug) || MOCK_POSTS[0];
+
+  // Check follow status
+  const isFollowingAuthor = user?.followingUsers.includes(post.authorId) || false;
 
   // Local interaction state
   const [liked, setLiked] = useState(false);
@@ -32,7 +41,55 @@ export const ArticleView: React.FC = () => {
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert('Link copied to clipboard!');
+    addNotification({ type: 'info', title: 'Link Copied', message: 'Share URL copied to clipboard.' });
+  };
+
+  const toggleFollowAuthor = () => {
+    if (!user) {
+      navigate('/auth?from=' + window.location.pathname);
+      return;
+    }
+    
+    let newFollowing = [...user.followingUsers];
+    let message = '';
+    
+    if (isFollowingAuthor) {
+      newFollowing = newFollowing.filter(id => id !== post.authorId);
+      message = `Unfollowed ${post.author.name}`;
+    } else {
+      newFollowing.push(post.authorId);
+      message = `Now following ${post.author.name}`;
+    }
+
+    updateUser({ followingUsers: newFollowing });
+    addNotification({ 
+      type: isFollowingAuthor ? 'info' : 'success', 
+      title: isFollowingAuthor ? 'Unfollowed' : 'Following',
+      message 
+    });
+  };
+
+  const toggleFollowTag = (tagName: string) => {
+    if (!user) {
+      navigate('/auth?from=' + window.location.pathname);
+      return;
+    }
+
+    let newTags = [...user.followingTags];
+    const isFollowing = newTags.includes(tagName);
+    
+    if (isFollowing) {
+      newTags = newTags.filter(t => t !== tagName);
+    } else {
+      newTags.push(tagName);
+    }
+
+    updateUser({ followingTags: newTags });
+    addNotification({ 
+      type: isFollowing ? 'info' : 'success', 
+      title: isFollowing ? 'Tag Unfollowed' : 'Tag Followed',
+      message: isFollowing ? `You are no longer following #${tagName}` : `You will now see more posts about #${tagName}`
+    });
   };
 
   // --- Theme & Style Config ---
@@ -71,25 +128,56 @@ export const ArticleView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto fade-in pb-32 relative">
-       <Button 
-         variant="ghost" 
-         size="sm" 
-         className="mb-6 -ml-4 text-slate-500 hover:text-slate-200"
-         onClick={() => navigate(-1)}
-       >
-         <ArrowLeft size={16} className="mr-2" /> Back
-       </Button>
+       <div className="flex items-center justify-between mb-6 -ml-4">
+         <Button 
+           variant="ghost" 
+           size="sm" 
+           className="text-slate-500 hover:text-slate-200"
+           onClick={() => navigate(-1)}
+         >
+           <ArrowLeft size={16} className="mr-2" /> Back
+         </Button>
+
+         {/* Collaborative Presence Easter Egg */}
+         <div className="flex items-center gap-2 bg-slate-900/50 border border-slate-800 rounded-full px-3 py-1">
+           <div className="flex -space-x-2">
+             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-indigo-500 flex items-center justify-center text-[10px] text-white font-bold">JS</div>
+             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-emerald-500 flex items-center justify-center text-[10px] text-white font-bold">MR</div>
+             <div className="h-6 w-6 rounded-full ring-2 ring-slate-900 bg-slate-700 flex items-center justify-center text-[10px] text-white font-bold">+3</div>
+           </div>
+           <span className="text-xs text-slate-500 font-medium ml-1 flex items-center gap-1">
+             <span className="relative flex h-2 w-2">
+               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+             </span>
+             Live
+           </span>
+         </div>
+       </div>
 
        {/* Dynamic Article Container */}
        <article className={`rounded-2xl border overflow-hidden mb-12 transition-colors duration-300 ${currentStyle.container}`}>
          {/* Header */}
          <div className={`p-8 md:p-12 ${currentStyle.header}`}>
-           <div className="flex gap-2 mb-6">
-             {post.tags.map((tag: any) => (
-               <span key={tag.id} className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded">
-                 #{tag.name}
-               </span>
-             ))}
+           <div className="flex gap-2 mb-6 flex-wrap">
+             {post.tags.map((tag: any) => {
+               const isFollowed = user?.followingTags.includes(tag.name);
+               return (
+                 <button 
+                   key={tag.id} 
+                   onClick={() => toggleFollowTag(tag.name)}
+                   title={isFollowed ? "Unfollow Tag" : "Follow Tag"}
+                   className={`text-xs font-mono px-2 py-1 rounded flex items-center gap-1 transition-colors border ${
+                     isFollowed 
+                       ? 'bg-primary/20 text-primary border-primary/30' 
+                       : 'bg-primary/5 text-primary/80 border-transparent hover:bg-primary/10'
+                   }`}
+                 >
+                   <Hash size={10} />{tag.name}
+                   {isFollowed && <Check size={10} />}
+                 </button>
+               );
+             })}
            </div>
            
            <h1 className={`text-3xl md:text-5xl font-bold mb-6 leading-tight ${currentStyle.title}`}>
@@ -102,17 +190,40 @@ export const ArticleView: React.FC = () => {
              </p>
            )}
 
-           <div className="flex items-center justify-between mt-8">
+           <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-8 gap-6">
              <div className="flex items-center gap-4">
-               <img 
-                 src={post.author.avatarUrl} 
-                 alt={post.author.name} 
-                 className="w-12 h-12 rounded-full ring-2 ring-slate-800"
-               />
-               <div>
-                 <div className={`font-medium ${currentStyle.metaPrimary}`}>{post.author.name}</div>
-                 <div className={`text-sm ${currentStyle.metaSecondary}`}>{post.author.expertise.join(' • ')}</div>
-               </div>
+               <Link to={`/profile/${post.authorId}`} className="group flex items-center gap-4">
+                 <img 
+                   src={post.author.avatarUrl} 
+                   alt={post.author.name} 
+                   className="w-12 h-12 rounded-full ring-2 ring-slate-800 group-hover:ring-primary transition-all"
+                 />
+                 <div>
+                   <div className={`font-medium flex items-center gap-2 group-hover:text-primary transition-colors ${currentStyle.metaPrimary}`}>
+                     {post.author.name}
+                     {post.authorId !== user?.id && (
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleFollowAuthor();
+                          }}
+                          className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide transition-colors ${
+                            isFollowingAuthor 
+                              ? 'bg-slate-200 text-slate-800 hover:bg-slate-300' 
+                              : 'bg-indigo-500 text-white hover:bg-indigo-600'
+                          }`}
+                        >
+                          {isFollowingAuthor ? (
+                            <>Following <Check size={10} /></>
+                          ) : (
+                            <>Follow <UserPlus size={10} /></>
+                          )}
+                        </button>
+                     )}
+                   </div>
+                   <div className={`text-sm ${currentStyle.metaSecondary}`}>{post.author.expertise.join(' • ')}</div>
+                 </div>
+               </Link>
              </div>
              <div className="text-right">
                <div className={`text-sm font-medium ${currentStyle.metaPrimary}`}>{post.publishedAt}</div>

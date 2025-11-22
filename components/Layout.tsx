@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
@@ -17,11 +18,12 @@ import {
   PenTool,
   Shield,
   Check,
-  Trash2
+  Trash2,
+  UserCircle
 } from 'lucide-react';
 
 export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { addNotification, history, unreadCount, markAllAsRead, clearHistory } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
@@ -89,22 +91,12 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
     });
   };
 
-  const handleLogin = () => {
-    login();
-    addNotification({
-      type: 'success',
-      title: 'Welcome back',
-      message: 'Your feed has been personalized based on your expertise.',
-      duration: 4000
-    });
-  };
-
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
   return (
-    <div className="min-h-screen bg-background text-slate-200 font-sans selection:bg-primary/30">
+    <div className="min-h-screen text-slate-200 font-sans selection:bg-primary/30">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/80 backdrop-blur-md">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-3 font-bold text-xl tracking-tight text-white hover:opacity-90 transition-opacity">
@@ -242,6 +234,14 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
                         </div>
                         
                         <Link 
+                          to="/profile" 
+                          className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                          onClick={() => setIsUserMenuOpen(false)}
+                        >
+                          <UserCircle size={16} className="mr-3 text-slate-500" /> Your Profile
+                        </Link>
+
+                        <Link 
                           to="/lab/new" 
                           className="flex items-center px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                           onClick={() => setIsUserMenuOpen(false)}
@@ -273,7 +273,9 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
                 </div>
               </div>
             ) : (
-              <Button size="sm" onClick={handleLogin}>Sign In</Button>
+              <Link to="/auth">
+                 <Button size="sm">Sign In</Button>
+              </Link>
             )}
           </div>
         </div>
@@ -304,7 +306,9 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
             </Link>
             {!user && (
               <div className="pt-2 border-t border-slate-800 mt-2">
-                 <Button className="w-full" onClick={() => { handleLogin(); setIsMobileMenuOpen(false); }}>Sign In</Button>
+                 <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
+                   <Button className="w-full">Sign In</Button>
+                 </Link>
               </div>
             )}
           </div>

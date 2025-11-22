@@ -1,109 +1,416 @@
-import React from 'react';
+
+import React, { useEffect, useRef } from 'react';
 import { MOCK_POSTS } from '../constants';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
-import { Zap, ArrowRight, Play, Brain, Sparkles, TrendingUp } from 'lucide-react';
+import { ArrowRight, Sparkles, Zap, Bookmark, Globe } from 'lucide-react';
 import { PostCard } from '../components/PostCard';
+
+// --- Advanced Physics Background Component ---
+const MusicNotesBackground = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    // FIX: Remove { alpha: false } to allow transparency. 
+    // Otherwise, clearRect renders black pixels instead of transparent ones.
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const SYMBOLS = ['♩', '♪', '♫', '♬', '♭', '♯', '𝄞', '𝄢', '𝄡'];
+    
+    interface Particle {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      color: string;
+      size: number;
+    }
+    
+    interface Note {
+      id: number;
+      x: number;
+      y: number;
+      size: number;
+      symbol: string;
+      vx: number;
+      vy: number;
+      rotation: number;
+      vRot: number;
+      baseAlpha: number;
+      active: boolean;
+    }
+
+    const notes: Note[] = [];
+    const particles: Particle[] = [];
+
+    const init = () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      notes.length = 0;
+
+      // Grid-based initialization for even spacing
+      const gridSize = 120; // Increased grid size for less clutter
+      const cols = Math.floor(width / gridSize);
+      const rows = Math.floor(height / gridSize);
+      
+      let idCounter = 0;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          // Add randomness only if probability check passes (don't fill every cell for aesthetics)
+          if (Math.random() > 0.3) continue;
+
+          const cellX = c * gridSize;
+          const cellY = r * gridSize;
+          
+          // Place randomly within the cell, but keep margins
+          const x = cellX + Math.random() * (gridSize - 40) + 20;
+          const y = cellY + Math.random() * (gridSize - 40) + 20;
+
+          notes.push({
+            id: idCounter++,
+            x: x,
+            y: y,
+            size: Math.random() * 20 + 16, // Slightly smaller average size
+            symbol: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+            vx: (Math.random() - 0.5) * 0.15, 
+            vy: (Math.random() - 0.5) * 0.15,
+            rotation: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 0.005,
+            baseAlpha: Math.random() * 0.15 + 0.05,
+            active: true
+          });
+        }
+      }
+    };
+
+    const onResize = () => init();
+    
+    const onMouseMove = (e: MouseEvent) => {
+      mouseRef.current.x = e.clientX;
+      // FIX: Do not add window.scrollY because the canvas is position: fixed.
+      // Its coordinate system matches the viewport (clientX/Y).
+      mouseRef.current.y = e.clientY; 
+    };
+
+    // Disintegrate effect on click
+    const onClick = (e: MouseEvent) => {
+      const mx = e.clientX;
+      const my = e.clientY; // Fixed position relative to viewport
+      
+      // Find note closest to click
+      for (let i = notes.length - 1; i >= 0; i--) {
+        const note = notes[i];
+        if (!note.active) continue;
+
+        const dx = note.x - mx;
+        const dy = note.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Hit box
+        if (dist < 50) {
+          note.active = false;
+          // Spawn Particles - Reduced count, removed physics complexity for performance
+          for (let j = 0; j < 8; j++) {
+            particles.push({
+              x: note.x,
+              y: note.y,
+              vx: (Math.random() - 0.5) * 6,
+              vy: (Math.random() - 0.5) * 6,
+              life: 1,
+              color: '129, 140, 248', // Indigo
+              size: Math.random() * 2 + 1
+            });
+          }
+          break; // Only explode one at a time
+        }
+      }
+    };
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mousedown', onClick);
+    init();
+
+    let animationId: number;
+
+    const update = () => {
+      // Clear with transparency preserved
+      ctx.clearRect(0, 0, width, height);
+      
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+
+      // Batch drawing settings to minimize state changes
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // 1. Update & Draw Notes
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        if (!note.active) continue;
+
+        // Physics
+        note.x += note.vx;
+        note.y += note.vy;
+        note.rotation += note.vRot;
+
+        // Mouse Repulsion
+        const dx = note.x - mx;
+        const dy = note.y - my;
+        // Simple distance check
+        const dist = Math.sqrt(dx * dx + dy * dy); 
+        const isHovered = dist < 120; // Slightly increased radius
+
+        if (isHovered) {
+           const force = (120 - dist) / 120;
+           const angle = Math.atan2(dy, dx);
+           note.x += Math.cos(angle) * force * 1.5;
+           note.y += Math.sin(angle) * force * 1.5;
+        }
+
+        // Wrap logic
+        if (note.x < -50) note.x = width + 50;
+        else if (note.x > width + 50) note.x = -50;
+        
+        if (note.y < -50) note.y = height + 50;
+        else if (note.y > height + 50) note.y = -50;
+
+        // Rendering
+        ctx.save();
+        ctx.translate(note.x, note.y);
+        ctx.rotate(note.rotation);
+        ctx.font = `${note.size}px "Times New Roman", serif`;
+        
+        if (isHovered) {
+          // Brighter glow on interaction
+          ctx.fillStyle = `rgba(165, 180, 252, ${Math.min(1, note.baseAlpha + 0.8)})`;
+          ctx.shadowColor = `rgba(129, 140, 248, 0.8)`;
+          ctx.shadowBlur = 15; 
+        } else {
+          // Subtle idle state
+          ctx.fillStyle = `rgba(71, 85, 105, ${note.baseAlpha})`;
+          ctx.shadowBlur = 0; 
+        }
+        
+        ctx.fillText(note.symbol, 0, 0);
+        ctx.restore();
+      }
+
+      // 2. Update & Draw Particles
+      if (particles.length > 0) {
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= 0.03;
+
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+
+          ctx.fillStyle = `rgba(129, 140, 248, ${p.life})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      animationId = requestAnimationFrame(update);
+    };
+
+    update();
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mousedown', onClick);
+      cancelAnimationFrame(animationId);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-auto" />;
+};
 
 export const HomeView: React.FC = () => {
   const { user } = useAuth();
 
-  // Logic: Featured Post is the latest Paper
-  const featuredPost = MOCK_POSTS.find(p => p.type === 'PAPER');
+  // CMS Logic: Get the "Featured" post
+  const featuredPost = MOCK_POSTS.find(p => p.featured) || MOCK_POSTS.find(p => p.type === 'PAPER');
 
-  // Logic: Recommended posts based on user expertise
+  // CMS Logic: Get "Pinned" posts
+  const pinnedPosts = MOCK_POSTS.filter(p => p.pinned && p.id !== featuredPost?.id);
+
+  // --- Advanced Recommendation Engine ---
   const getRecommendedPosts = () => {
-    if (!user || !user.expertise) return [];
-    return MOCK_POSTS.filter(post => {
-      const matches = post.tags.some(tag => 
-        user.expertise.some(exp => exp.toLowerCase() === tag.name.toLowerCase())
-      );
-      return matches && post.id !== featuredPost?.id; // Don't recommend the featured post again
-    }).slice(0, 3);
+    if (!user) return [];
+    
+    // Scoring system:
+    // +5 points if Author is followed
+    // +3 points if Tag is followed
+    // +1 point if Tag matches Expertise
+    
+    const scoredPosts = MOCK_POSTS
+      .filter(post => post.id !== featuredPost?.id && !pinnedPosts.find(p => p.id === post.id))
+      .map(post => {
+        let score = 0;
+        
+        if (user.followingUsers?.includes(post.authorId)) {
+          score += 5;
+        }
+        
+        post.tags.forEach(tag => {
+          if (user.followingTags?.includes(tag.name)) {
+            score += 3;
+          }
+        });
+
+        post.tags.forEach(tag => {
+          if (user.expertise.some(exp => exp.toLowerCase() === tag.name.toLowerCase())) {
+            score += 1;
+          }
+        });
+
+        return { post, score };
+      });
+
+    return scoredPosts
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.post)
+      .slice(0, 3);
   };
 
   const recommendedPosts = getRecommendedPosts();
-  // Latest feed excludes featured and recommended to avoid dupes (simple version)
+  
+  // Latest feed logic
   const latestPosts = MOCK_POSTS.filter(p => 
-    p.id !== featuredPost?.id && !recommendedPosts.find(r => r.id === p.id)
+    p.id !== featuredPost?.id && 
+    !pinnedPosts.find(pinned => pinned.id === p.id) &&
+    !recommendedPosts.find(r => r.id === p.id)
   );
 
   return (
-    <div className="space-y-16 fade-in">
-      
-      {/* 1. Hero / Featured Section (Always visible, user requested it back) */}
-      {featuredPost && (
-        <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-br from-indigo-950/30 via-slate-950 to-slate-950 p-8 md:p-12">
-          <div className="relative z-10 max-w-3xl">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-400 ring-1 ring-inset ring-indigo-500/20">
-              <Zap size={12} /> Featured Research
-            </div>
-            <h1 className="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl lg:text-6xl leading-tight">
-              {featuredPost.title}
-            </h1>
-            <p className="mb-8 text-lg text-slate-400 leading-relaxed max-w-2xl">
-              {featuredPost.abstract}
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <Link 
-                to={`/read/${featuredPost.slug}`}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20"
-              >
-                Read Paper <ArrowRight size={16} />
-              </Link>
-              <button 
-                onClick={() => alert('Demo loading...')}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 px-6 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition-colors"
-              >
-                <Play size={16} /> View Demo
-              </button>
-            </div>
-          </div>
-          
-          {/* Abstract visual decorations */}
-          <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-indigo-500/20 blur-[100px] pointer-events-none"></div>
-          <div className="absolute bottom-0 right-0 h-64 w-64 rounded-full bg-sky-500/10 blur-[80px] pointer-events-none"></div>
-        </section>
-      )}
+    <div className="relative min-h-screen">
+      {/* New Music Background */}
+      <MusicNotesBackground />
 
-      {/* 2. Recommended For You (Dynamic) */}
-      {user && recommendedPosts.length > 0 && (
-        <section className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-indigo-400 text-sm font-bold uppercase tracking-wider">
-              <Sparkles size={16} /> Recommended for you
+      {/* Main Content Wrapper with higher z-index */}
+      <div className="relative z-10 space-y-20 fade-in pb-20 pointer-events-none">
+        
+        {/* 1. Hero / Featured Section */}
+        {featuredPost && (
+          <section className="relative pt-4 pointer-events-auto">
+            {/* Stronger Frosted Glass / White Border as requested */}
+            <div className="relative overflow-hidden rounded-3xl border-2 border-white/10 bg-slate-900/60 backdrop-blur-2xl p-8 md:p-14 lg:p-16 shadow-2xl">
+              
+              <div className="grid md:grid-cols-3 gap-12 items-center">
+                <div className="md:col-span-2 relative z-10 space-y-8">
+                  <div className="inline-flex items-center gap-2 text-indigo-400 text-sm font-bold tracking-widest uppercase">
+                    <Zap size={16} /> Featured Research
+                  </div>
+                  
+                  <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold text-white leading-[1.1] tracking-tight">
+                    Real-time Granular Synthesis with Rust <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-300">& WASM</span>
+                  </h1>
+                  
+                  <p className="text-xl text-slate-300 leading-relaxed max-w-2xl border-l-2 border-indigo-500/50 pl-6">
+                    {featuredPost.abstract || featuredPost.subtitle}
+                  </p>
+                  
+                  <div className="flex items-center gap-4 pt-4">
+                    <Link 
+                      to={`/read/${featuredPost.slug}`}
+                      className="inline-flex items-center gap-2 rounded-lg bg-white text-slate-950 px-8 py-4 text-base font-bold hover:bg-indigo-50 transition-colors shadow-lg shadow-indigo-900/20"
+                    >
+                      Read Paper <ArrowRight size={18} />
+                    </Link>
+                    {featuredPost.readTimeMinutes && (
+                      <span className="text-sm text-slate-400 ml-2 font-mono">{featuredPost.readTimeMinutes} min read</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Visual Abstract / Decoration */}
+                <div className="hidden md:flex justify-center items-center">
+                   <div className="relative h-72 w-72 flex items-center justify-center">
+                     {/* CSS-only abstract art representing 'music/sound' */}
+                     <div className="absolute inset-0 rounded-full border border-slate-500/20 animate-[spin_20s_linear_infinite]"></div>
+                     <div className="absolute inset-8 rounded-full border border-slate-400/20 animate-[spin_15s_linear_infinite_reverse]"></div>
+                     <div className="absolute inset-16 rounded-full border border-indigo-500/30 animate-[pulse_4s_ease-in-out_infinite]"></div>
+                     <div className="relative z-10 text-center mix-blend-overlay">
+                        <div className="text-6xl font-bold text-white/10 tracking-tighter">DSP</div>
+                     </div>
+                   </div>
+                </div>
+              </div>
             </div>
-            <Link to="/explore" className="text-xs font-medium text-slate-500 hover:text-white transition-colors">
-              View Preferences
+          </section>
+        )}
+
+        {/* 2. Pinned / Essential Readings */}
+        {pinnedPosts.length > 0 && (
+          <section className="space-y-8 pointer-events-auto">
+            <div className="flex items-center gap-3 text-white text-2xl font-bold tracking-tight">
+              <Bookmark size={24} className="text-orange-500" /> Essential Reading
+            </div>
+            <div className="grid md:grid-cols-2 gap-8">
+              {pinnedPosts.map(post => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 3. Algorithmic Recommendations */}
+        {user && recommendedPosts.length > 0 && (
+          <section className="space-y-8 pointer-events-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-white text-2xl font-bold tracking-tight">
+                <Sparkles size={24} className="text-purple-500" /> Recommended for You
+              </div>
+              <div className="hidden md:block text-sm text-slate-500 font-medium">
+                Curated from your network & interests
+              </div>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {recommendedPosts.map(post => (
+                <PostCard key={post.id} post={post} isRecommended />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 4. Global Feed */}
+        <section className="space-y-8 pointer-events-auto">
+          <div className="flex items-center gap-3 text-white text-2xl font-bold tracking-tight">
+            <Globe size={24} className="text-sky-500" /> Latest Publications
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {latestPosts.map(post => (
+              <PostCard key={post.id} post={post} />
+            ))}
+            
+            {/* Browse All CTA */}
+            <Link to="/explore" className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-8 hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all min-h-[240px]">
+               <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform group-hover:bg-indigo-600 text-white shadow-xl">
+                 <ArrowRight size={28} className="text-slate-400 group-hover:text-white" />
+               </div>
+               <span className="font-medium text-slate-400 group-hover:text-white transition-colors">View All Research</span>
             </Link>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendedPosts.map(post => (
-              <PostCard key={post.id} post={post} isRecommended />
-            ))}
-          </div>
         </section>
-      )}
-
-      {/* 3. Latest Activity / Feed */}
-      <section className="space-y-6">
-        <div className="flex items-center gap-2 text-slate-500 text-sm font-bold uppercase tracking-wider">
-          <TrendingUp size={16} /> Latest Updates
-        </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {latestPosts.map(post => (
-            <PostCard key={post.id} post={post} />
-          ))}
-          {/* Add a dummy card to fill grid if needed */}
-          <Link to="/explore" className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/20 p-8 hover:border-slate-600 hover:bg-slate-900/40 transition-all min-h-[240px]">
-             <div className="h-12 w-12 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-               <ArrowRight size={24} className="text-slate-400" />
-             </div>
-             <span className="font-medium text-slate-300">Browse All Research</span>
-          </Link>
-        </div>
-      </section>
-
+      </div>
     </div>
   );
 };

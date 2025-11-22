@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { MemoryRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -8,7 +9,9 @@ import { LabView } from './views/LabView';
 import { AdminView } from './views/AdminView';
 import { AboutView } from './views/AboutView';
 import { EditorView } from './views/EditorView';
+import { UserProfileView } from './views/UserProfileView';
 import { ComingSoonView } from './views/ComingSoonView';
+import { AuthView } from './views/AuthView';
 import { AuthProvider } from './components/AuthProvider';
 import { NotificationProvider } from './components/NotificationProvider';
 
@@ -33,11 +36,14 @@ const App: React.FC = () => {
           <Layout>
             <Routes>
               <Route path="/" element={<HomeView />} />
+              <Route path="/auth" element={<AuthView />} />
               <Route path="/explore" element={<ExploreView />} />
               <Route path="/lab" element={<LabView />} />
               <Route path="/lab/new" element={<EditorView />} />
               <Route path="/read/:slug" element={<ArticleView />} />
               <Route path="/admin" element={<AdminView />} />
+              <Route path="/profile" element={<UserProfileView />} />
+              <Route path="/profile/:userId" element={<UserProfileView />} />
               <Route path="/about" element={<AboutView />} />
               
               {/* Placeholder Routes */}

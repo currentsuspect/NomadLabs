@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Comment, ReactionType } from '../types';
 import { MOCK_COMMENTS } from '../constants';
 import { useAuth } from './AuthProvider';
+import { useNotification } from './NotificationProvider';
 import { Button } from './ui/Button';
 import { MarkdownRenderer } from '../utils/markdown';
 import { ThumbsUp, Flame, Brain, Rocket, MessageSquare, User as UserIcon } from 'lucide-react';
@@ -34,8 +35,13 @@ const ReactionButton: React.FC<{
   );
 };
 
-const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, depth = 0 }) => {
+const CommentItem: React.FC<{ 
+  comment: Comment; 
+  depth?: number; 
+  onReply: (parentId: string, content: string) => void;
+}> = ({ comment, depth = 0, onReply }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotification();
   const [isReplying, setIsReplying] = useState(false);
   const [replyContent, setReplyContent] = useState('');
   
@@ -43,7 +49,14 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
   const [reactions, setReactions] = useState(comment.reactions);
 
   const handleReaction = (type: ReactionType) => {
-    if (!user) return alert("Please sign in to react.");
+    if (!user) {
+      addNotification({
+        type: 'info',
+        title: 'Authentication Required',
+        message: 'Please sign in to react to comments.'
+      });
+      return;
+    }
     
     setReactions(prev => {
       const existing = prev.find(r => r.type === type);
@@ -62,6 +75,25 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
         return [...prev, { type, count: 1, userHasReacted: true }];
       }
     });
+  };
+
+  const handleToggleReply = () => {
+    if (!user) {
+      addNotification({
+        type: 'info',
+        title: 'Authentication Required',
+        message: 'Please sign in to reply.'
+      });
+      return;
+    }
+    setIsReplying(!isReplying);
+  };
+
+  const handleSubmitReply = () => {
+    if (!replyContent.trim()) return;
+    onReply(comment.id, replyContent);
+    setReplyContent('');
+    setIsReplying(false);
   };
 
   return (
@@ -115,7 +147,7 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
             <div className="h-4 w-px bg-slate-800"></div>
 
             <button 
-              onClick={() => setIsReplying(!isReplying)}
+              onClick={handleToggleReply}
               className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
             >
               <MessageSquare size={14} />
@@ -135,10 +167,11 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
                   onChange={(e) => setReplyContent(e.target.value)}
                   placeholder={`Reply to ${comment.author.name}...`}
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:ring-1 focus:ring-primary min-h-[80px]"
+                  autoFocus
                 />
                 <div className="flex justify-end gap-2 mt-2">
                   <Button size="sm" variant="ghost" onClick={() => setIsReplying(false)}>Cancel</Button>
-                  <Button size="sm" onClick={() => { setIsReplying(false); setReplyContent(''); }}>Reply</Button>
+                  <Button size="sm" onClick={handleSubmitReply}>Reply</Button>
                 </div>
               </div>
             </div>
@@ -148,7 +181,7 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
           {comment.replies && comment.replies.length > 0 && (
             <div className="mt-2">
               {comment.replies.map(reply => (
-                <CommentItem key={reply.id} comment={reply} depth={depth + 1} />
+                <CommentItem key={reply.id} comment={reply} depth={depth + 1} onReply={onReply} />
               ))}
             </div>
           )}
@@ -160,11 +193,16 @@ const CommentItem: React.FC<{ comment: Comment; depth?: number }> = ({ comment, 
 
 export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
   const { user } = useAuth();
+  const { addNotification } = useNotification();
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS);
 
   const handlePostComment = () => {
-    if (!newComment.trim() || !user) return;
+    if (!user) {
+       addNotification({ type: 'error', title: 'Authentication Required', message: 'Please log in to post.' });
+       return;
+    }
+    if (!newComment.trim()) return;
 
     const commentObj: Comment = {
       id: `new-${Date.now()}`,
@@ -177,6 +215,43 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
 
     setComments([commentObj, ...comments]);
     setNewComment('');
+  };
+
+  const handleReply = (parentId: string, content: string) => {
+    if (!user) {
+       addNotification({ type: 'error', title: 'Authentication Required', message: 'Please log in to reply.' });
+       return;
+    }
+
+    const newReply: Comment = {
+      id: `reply-${Date.now()}`,
+      author: user,
+      content: content,
+      createdAt: 'Just now',
+      reactions: [],
+      replies: []
+    };
+
+    // Recursive function to find parent and add reply
+    const addReplyRecursive = (list: Comment[]): Comment[] => {
+      return list.map(c => {
+        if (c.id === parentId) {
+          return {
+            ...c,
+            replies: [...(c.replies || []), newReply]
+          };
+        }
+        if (c.replies && c.replies.length > 0) {
+          return {
+            ...c,
+            replies: addReplyRecursive(c.replies)
+          };
+        }
+        return c;
+      });
+    };
+
+    setComments(addReplyRecursive(comments));
   };
 
   return (
@@ -224,7 +299,7 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
         {/* Comments List */}
         <div className="space-y-2">
           {comments.map(comment => (
-            <CommentItem key={comment.id} comment={comment} />
+            <CommentItem key={comment.id} comment={comment} onReply={handleReply} />
           ))}
         </div>
       </div>
