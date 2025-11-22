@@ -53,9 +53,20 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
       });
     }, 20000);
 
+    // Simulate new follower
+    const timer3 = setTimeout(() => {
+      addNotification({
+        type: 'info',
+        title: 'New Follower',
+        message: 'Dr. Aris Thorne started following your work.',
+        duration: 5000
+      });
+    }, 12000);
+
     return () => {
       clearTimeout(timer1);
       clearTimeout(timer2);
+      clearTimeout(timer3);
     };
   }, [user, addNotification]);
 
