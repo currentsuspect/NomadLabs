@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
@@ -6,6 +5,8 @@ import { useNotification } from '../components/NotificationProvider';
 import { Button } from '../components/ui/Button';
 import { MarkdownRenderer } from '../utils/markdown';
 import { ArrowLeft, Save, Image as ImageIcon, Code, MoreVertical, Eye, Edit3, FileText, ChevronRight } from 'lucide-react';
+import { api } from '../services/api';
+import { Post, PostStatus, PostType } from '../types';
 
 export const EditorView: React.FC = () => {
   const navigate = useNavigate();
@@ -13,36 +14,61 @@ export const EditorView: React.FC = () => {
   const { addNotification } = useNotification();
   
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState(''); // Empty by default, usage instructions in placeholder
+  const [content, setContent] = useState(''); 
   const [isPreview, setIsPreview] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
 
-  // Auto-resize text area
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = e.target.scrollHeight + 'px';
   };
 
-  const handleSave = (status: 'DRAFT' | 'PUBLISHED') => {
+  const handleSave = async (status: PostStatus) => {
+    if (!user) return;
     if (!title.trim()) {
         addNotification({ type: 'warning', title: 'Missing Title', message: 'Please give your entry a title.' });
         return;
     }
     
     setIsSaving(true);
+
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false);
-      setLastSaved(new Date().toLocaleTimeString());
-      addNotification({ 
-        type: 'success', 
-        title: status === 'DRAFT' ? 'Draft Saved' : 'Published!', 
-        message: status === 'DRAFT' ? 'Saved to your workspace.' : 'Your note is now live.' 
-      });
-    }, 800);
+    const newPost: Post = {
+        id: `post-${Date.now()}`,
+        slug,
+        title,
+        content,
+        authorId: user.id,
+        author: user,
+        status,
+        type: PostType.LAB_NOTE,
+        publishedAt: new Date().toLocaleDateString(),
+        readTimeMinutes: Math.max(1, Math.ceil(content.split(' ').length / 200)),
+        tags: [],
+        featured: false,
+        pinned: false
+    };
+
+    try {
+        await api.posts.create(newPost);
+        setLastSaved(new Date().toLocaleTimeString());
+        addNotification({ 
+            type: 'success', 
+            title: status === 'DRAFT' ? 'Draft Saved' : 'Published!', 
+            message: status === 'DRAFT' ? 'Saved to your workspace.' : 'Your note is now live.' 
+        });
+        
+        if (status === 'PUBLISHED') {
+            setTimeout(() => navigate(`/read/${slug}`), 1000);
+        }
+    } catch (e) {
+        addNotification({ type: 'error', title: 'Save Failed', message: 'Could not save to database.' });
+    } finally {
+        setIsSaving(false);
+    }
   };
 
   if (!user) {
@@ -67,7 +93,6 @@ export const EditorView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto fade-in min-h-[90vh] flex flex-col pb-20">
-      {/* Enhanced Workspace Header */}
       <div className="sticky top-0 z-30 bg-[#020617]/95 backdrop-blur-md py-4 mb-8 border-b border-slate-800/50 -mx-4 px-4 md:px-0 md:mx-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -114,7 +139,7 @@ export const EditorView: React.FC = () => {
 
             <Button 
                 variant="secondary" 
-                onClick={() => handleSave('DRAFT')} 
+                onClick={() => handleSave(PostStatus.DRAFT)} 
                 disabled={isSaving} 
                 size="sm"
                 className="hidden sm:flex"
@@ -123,7 +148,7 @@ export const EditorView: React.FC = () => {
             </Button>
             
             <Button 
-                onClick={() => handleSave('PUBLISHED')} 
+                onClick={() => handleSave(PostStatus.PUBLISHED)} 
                 disabled={isSaving} 
                 size="sm" 
                 className={isSaving ? 'opacity-80' : ''}
@@ -138,7 +163,6 @@ export const EditorView: React.FC = () => {
         </div>
       </div>
 
-      {/* Editor / Preview Surface */}
       <div className="flex-1 relative group animate-in fade-in slide-in-from-bottom-4 duration-500">
         {isPreview ? (
             <div className="prose prose-invert max-w-none prose-headings:font-bold prose-h1:text-4xl prose-p:text-slate-300 prose-p:text-lg prose-p:leading-8">
@@ -147,7 +171,6 @@ export const EditorView: React.FC = () => {
             </div>
         ) : (
             <>
-                {/* Title Input */}
                 <input
                 type="text"
                 placeholder="Untitled Entry"
@@ -157,14 +180,12 @@ export const EditorView: React.FC = () => {
                 autoFocus
                 />
 
-                {/* Slash Command Hint (Desktop) */}
                 <div className="absolute left-0 top-24 -ml-12 hidden xl:flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     <div className="h-8 w-8 rounded flex items-center justify-center bg-slate-800/50 text-slate-500 text-xs font-bold border border-slate-700" title="Add Block">+</div>
                     <div className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" title="Image"><ImageIcon size={16} /></div>
                     <div className="h-8 w-8 rounded flex items-center justify-center hover:bg-slate-800 text-slate-600 hover:text-slate-300 cursor-pointer transition-colors" title="Code"><Code size={16} /></div>
                 </div>
 
-                {/* Content Area */}
                 <textarea
                 className="w-full bg-transparent border-none text-lg text-slate-300 leading-relaxed focus:outline-none resize-none min-h-[60vh] placeholder:text-slate-700"
                 value={content}

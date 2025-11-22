@@ -1,10 +1,10 @@
-
-import React, { useEffect, useRef } from 'react';
-import { MOCK_POSTS } from '../constants';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
 import { ArrowRight, Sparkles, Zap, Bookmark, Globe } from 'lucide-react';
 import { PostCard } from '../components/PostCard';
+import { api } from '../services/api';
+import { Post } from '../types';
 
 // --- Advanced Physics Background Component ---
 const MusicNotesBackground = () => {
@@ -15,8 +15,6 @@ const MusicNotesBackground = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     
-    // FIX: Remove { alpha: false } to allow transparency. 
-    // Otherwise, clearRect renders black pixels instead of transparent ones.
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -57,8 +55,7 @@ const MusicNotesBackground = () => {
       height = canvas.height = window.innerHeight;
       notes.length = 0;
 
-      // Grid-based initialization for even spacing
-      const gridSize = 120; // Increased grid size for less clutter
+      const gridSize = 120; 
       const cols = Math.floor(width / gridSize);
       const rows = Math.floor(height / gridSize);
       
@@ -66,13 +63,11 @@ const MusicNotesBackground = () => {
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          // Add randomness only if probability check passes (don't fill every cell for aesthetics)
           if (Math.random() > 0.3) continue;
 
           const cellX = c * gridSize;
           const cellY = r * gridSize;
           
-          // Place randomly within the cell, but keep margins
           const x = cellX + Math.random() * (gridSize - 40) + 20;
           const y = cellY + Math.random() * (gridSize - 40) + 20;
 
@@ -80,7 +75,7 @@ const MusicNotesBackground = () => {
             id: idCounter++,
             x: x,
             y: y,
-            size: Math.random() * 20 + 16, // Slightly smaller average size
+            size: Math.random() * 20 + 16, 
             symbol: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
             vx: (Math.random() - 0.5) * 0.15, 
             vy: (Math.random() - 0.5) * 0.15,
@@ -97,17 +92,13 @@ const MusicNotesBackground = () => {
     
     const onMouseMove = (e: MouseEvent) => {
       mouseRef.current.x = e.clientX;
-      // FIX: Do not add window.scrollY because the canvas is position: fixed.
-      // Its coordinate system matches the viewport (clientX/Y).
       mouseRef.current.y = e.clientY; 
     };
 
-    // Disintegrate effect on click
     const onClick = (e: MouseEvent) => {
       const mx = e.clientX;
-      const my = e.clientY; // Fixed position relative to viewport
+      const my = e.clientY;
       
-      // Find note closest to click
       for (let i = notes.length - 1; i >= 0; i--) {
         const note = notes[i];
         if (!note.active) continue;
@@ -116,10 +107,8 @@ const MusicNotesBackground = () => {
         const dy = note.y - my;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Hit box
         if (dist < 50) {
           note.active = false;
-          // Spawn Particles - Reduced count, removed physics complexity for performance
           for (let j = 0; j < 8; j++) {
             particles.push({
               x: note.x,
@@ -127,11 +116,11 @@ const MusicNotesBackground = () => {
               vx: (Math.random() - 0.5) * 6,
               vy: (Math.random() - 0.5) * 6,
               life: 1,
-              color: '129, 140, 248', // Indigo
+              color: '129, 140, 248',
               size: Math.random() * 2 + 1
             });
           }
-          break; // Only explode one at a time
+          break;
         }
       }
     };
@@ -144,32 +133,26 @@ const MusicNotesBackground = () => {
     let animationId: number;
 
     const update = () => {
-      // Clear with transparency preserved
       ctx.clearRect(0, 0, width, height);
       
       const mx = mouseRef.current.x;
       const my = mouseRef.current.y;
 
-      // Batch drawing settings to minimize state changes
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      // 1. Update & Draw Notes
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
         if (!note.active) continue;
 
-        // Physics
         note.x += note.vx;
         note.y += note.vy;
         note.rotation += note.vRot;
 
-        // Mouse Repulsion
         const dx = note.x - mx;
         const dy = note.y - my;
-        // Simple distance check
         const dist = Math.sqrt(dx * dx + dy * dy); 
-        const isHovered = dist < 120; // Slightly increased radius
+        const isHovered = dist < 120;
 
         if (isHovered) {
            const force = (120 - dist) / 120;
@@ -178,26 +161,22 @@ const MusicNotesBackground = () => {
            note.y += Math.sin(angle) * force * 1.5;
         }
 
-        // Wrap logic
         if (note.x < -50) note.x = width + 50;
         else if (note.x > width + 50) note.x = -50;
         
         if (note.y < -50) note.y = height + 50;
         else if (note.y > height + 50) note.y = -50;
 
-        // Rendering
         ctx.save();
         ctx.translate(note.x, note.y);
         ctx.rotate(note.rotation);
         ctx.font = `${note.size}px "Times New Roman", serif`;
         
         if (isHovered) {
-          // Brighter glow on interaction
           ctx.fillStyle = `rgba(165, 180, 252, ${Math.min(1, note.baseAlpha + 0.8)})`;
           ctx.shadowColor = `rgba(129, 140, 248, 0.8)`;
           ctx.shadowBlur = 15; 
         } else {
-          // Subtle idle state
           ctx.fillStyle = `rgba(71, 85, 105, ${note.baseAlpha})`;
           ctx.shadowBlur = 0; 
         }
@@ -206,7 +185,6 @@ const MusicNotesBackground = () => {
         ctx.restore();
       }
 
-      // 2. Update & Draw Particles
       if (particles.length > 0) {
         for (let i = particles.length - 1; i >= 0; i--) {
           const p = particles[i];
@@ -244,43 +222,38 @@ const MusicNotesBackground = () => {
 
 export const HomeView: React.FC = () => {
   const { user } = useAuth();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // CMS Logic: Get the "Featured" post
-  const featuredPost = MOCK_POSTS.find(p => p.featured) || MOCK_POSTS.find(p => p.type === 'PAPER');
+  useEffect(() => {
+    const loadData = async () => {
+      const data = await api.posts.list();
+      setPosts(data);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
 
-  // CMS Logic: Get "Pinned" posts
-  const pinnedPosts = MOCK_POSTS.filter(p => p.pinned && p.id !== featuredPost?.id);
+  // Featured Logic
+  const featuredPost = posts.find(p => p.featured) || posts.find(p => p.type === 'PAPER');
+  // Pinned Logic
+  const pinnedPosts = posts.filter(p => p.pinned && p.id !== featuredPost?.id);
 
   // --- Advanced Recommendation Engine ---
   const getRecommendedPosts = () => {
     if (!user) return [];
     
-    // Scoring system:
-    // +5 points if Author is followed
-    // +3 points if Tag is followed
-    // +1 point if Tag matches Expertise
-    
-    const scoredPosts = MOCK_POSTS
+    const scoredPosts = posts
       .filter(post => post.id !== featuredPost?.id && !pinnedPosts.find(p => p.id === post.id))
       .map(post => {
         let score = 0;
-        
-        if (user.followingUsers?.includes(post.authorId)) {
-          score += 5;
-        }
-        
+        if (user.followingUsers?.includes(post.authorId)) score += 5;
         post.tags.forEach(tag => {
-          if (user.followingTags?.includes(tag.name)) {
-            score += 3;
-          }
+          if (user.followingTags?.includes(tag.name)) score += 3;
         });
-
         post.tags.forEach(tag => {
-          if (user.expertise.some(exp => exp.toLowerCase() === tag.name.toLowerCase())) {
-            score += 1;
-          }
+          if (user.expertise.some(exp => exp.toLowerCase() === tag.name.toLowerCase())) score += 1;
         });
-
         return { post, score };
       });
 
@@ -294,24 +267,26 @@ export const HomeView: React.FC = () => {
   const recommendedPosts = getRecommendedPosts();
   
   // Latest feed logic
-  const latestPosts = MOCK_POSTS.filter(p => 
+  const latestPosts = posts.filter(p => 
     p.id !== featuredPost?.id && 
     !pinnedPosts.find(pinned => pinned.id === p.id) &&
-    !recommendedPosts.find(r => r.id === p.id)
-  );
+    !recommendedPosts.find(r => r.id === p.id) &&
+    p.status === 'PUBLISHED'
+  ).slice(0, 6);
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-500">Initializing Lab...</div>;
+  }
 
   return (
     <div className="relative min-h-screen">
-      {/* New Music Background */}
       <MusicNotesBackground />
 
-      {/* Main Content Wrapper with higher z-index */}
       <div className="relative z-10 space-y-20 fade-in pb-20 pointer-events-none">
         
         {/* 1. Hero / Featured Section */}
         {featuredPost && (
           <section className="relative pt-4 pointer-events-auto">
-            {/* Stronger Frosted Glass / White Border as requested */}
             <div className="relative overflow-hidden rounded-3xl border-2 border-white/10 bg-slate-900/60 backdrop-blur-2xl p-8 md:p-14 lg:p-16 shadow-2xl">
               
               <div className="grid md:grid-cols-3 gap-12 items-center">
@@ -321,7 +296,7 @@ export const HomeView: React.FC = () => {
                   </div>
                   
                   <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold text-white leading-[1.1] tracking-tight">
-                    Real-time Granular Synthesis with Rust <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-300">& WASM</span>
+                    {featuredPost.title}
                   </h1>
                   
                   <p className="text-xl text-slate-300 leading-relaxed max-w-2xl border-l-2 border-indigo-500/50 pl-6">
@@ -341,10 +316,8 @@ export const HomeView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Visual Abstract / Decoration */}
                 <div className="hidden md:flex justify-center items-center">
                    <div className="relative h-72 w-72 flex items-center justify-center">
-                     {/* CSS-only abstract art representing 'music/sound' */}
                      <div className="absolute inset-0 rounded-full border border-slate-500/20 animate-[spin_20s_linear_infinite]"></div>
                      <div className="absolute inset-8 rounded-full border border-slate-400/20 animate-[spin_15s_linear_infinite_reverse]"></div>
                      <div className="absolute inset-16 rounded-full border border-indigo-500/30 animate-[pulse_4s_ease-in-out_infinite]"></div>
@@ -401,7 +374,6 @@ export const HomeView: React.FC = () => {
               <PostCard key={post.id} post={post} />
             ))}
             
-            {/* Browse All CTA */}
             <Link to="/explore" className="group flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-900/20 p-8 hover:border-indigo-500/50 hover:bg-indigo-900/10 transition-all min-h-[240px]">
                <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform group-hover:bg-indigo-600 text-white shadow-xl">
                  <ArrowRight size={28} className="text-slate-400 group-hover:text-white" />

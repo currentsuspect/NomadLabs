@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { MemoryRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -14,6 +13,7 @@ import { ComingSoonView } from './views/ComingSoonView';
 import { AuthView } from './views/AuthView';
 import { AuthProvider } from './components/AuthProvider';
 import { NotificationProvider } from './components/NotificationProvider';
+import { api } from './services/api';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -28,6 +28,10 @@ const ScrollToTop = () => {
 };
 
 const App: React.FC = () => {
+  useEffect(() => {
+    api.init();
+  }, []);
+
   return (
     <AuthProvider>
       <NotificationProvider>

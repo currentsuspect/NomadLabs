@@ -1,22 +1,29 @@
-
-import React from 'react';
-import { MOCK_POSTS, MOCK_COMMENTS } from '../constants';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/Button';
 import { PenTool, TrendingUp, MessageCircle, ArrowRight, FlaskConical, Activity } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthProvider';
+import { api } from '../services/api';
+import { Post, Comment } from '../types';
 
 export const LabView: React.FC = () => {
-  const notes = MOCK_POSTS.filter(p => p.type === 'LAB_NOTE' || p.type === 'ARTICLE');
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
 
-  // Calculate real stats from "database"
-  const activeExperiments = MOCK_POSTS.length;
-  const totalComments = MOCK_COMMENTS.reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+  useEffect(() => {
+    Promise.all([api.posts.list(), api.comments.list()]).then(([p, c]) => {
+      setPosts(p);
+      setComments(c);
+    });
+  }, []);
+
+  const notes = posts.filter(p => (p.type === 'LAB_NOTE' || p.type === 'ARTICLE') && p.status === 'PUBLISHED');
+  const activeExperiments = notes.length;
+  const totalComments = comments.length;
   
-  // Extract trending tags dynamically
-  const allTags = MOCK_POSTS.flatMap(p => p.tags);
+  const allTags = posts.flatMap(p => p.tags);
   const tagCounts = allTags.reduce((acc, tag) => {
     acc[tag.name] = (acc[tag.name] || 0) + 1;
     return acc;
@@ -36,7 +43,6 @@ export const LabView: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto fade-in">
-      {/* Page Header */}
       <div className="mb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div>
@@ -56,7 +62,6 @@ export const LabView: React.FC = () => {
           </div>
         </div>
         
-        {/* Dynamic Data Ticker */}
         <div className="flex flex-wrap items-center gap-6 py-3 px-4 border-y border-slate-800 bg-slate-900/20 rounded-lg backdrop-blur-sm text-xs font-mono text-slate-400">
           <div className="flex items-center gap-2 text-slate-300">
             <div className="relative flex h-2 w-2">
@@ -91,7 +96,6 @@ export const LabView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Main Feed */}
         <div className="lg:col-span-8 space-y-6">
           {notes.map((note) => (
             <div key={note.id} className="bg-slate-900/30 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors group">
@@ -108,7 +112,6 @@ export const LabView: React.FC = () => {
                        <div className="text-xs text-slate-500">{note.publishedAt} • {note.readTimeMinutes} min read</div>
                      </div>
                    </div>
-                   {/* Badge */}
                    <span className="px-2 py-1 rounded text-[10px] font-bold bg-slate-800 text-slate-400 uppercase tracking-wide">
                      {note.type.replace('_', ' ')}
                    </span>
@@ -119,7 +122,7 @@ export const LabView: React.FC = () => {
                      {note.title}
                    </h3>
                    <p className="text-slate-400 leading-relaxed mb-4 line-clamp-3">
-                     {note.content}
+                     {note.content.substring(0, 200)}...
                    </p>
                  </Link>
 
@@ -146,15 +149,12 @@ export const LabView: React.FC = () => {
           ))}
         </div>
 
-        {/* Sidebar */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Community Pulse */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
             <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Activity size={16} className="text-orange-500" /> Live Activity
             </h3>
             <ul className="space-y-4">
-              {/* Mocking live activity for the 'advanced' feel since we don't have a real socket feed */}
               <li className="group cursor-pointer relative pl-4 border-l-2 border-slate-800 hover:border-indigo-500 transition-colors">
                 <div className="text-sm font-medium text-slate-300 group-hover:text-primary transition-colors">
                   Rust vs C++ for DSP
@@ -170,7 +170,6 @@ export const LabView: React.FC = () => {
             </ul>
           </div>
 
-          {/* Call to Action */}
           <div className="bg-gradient-to-br from-indigo-900/20 to-slate-900/50 border border-indigo-500/20 rounded-xl p-6">
             <h3 className="text-lg font-bold text-white mb-2">Share your findings</h3>
             <p className="text-sm text-slate-400 mb-4">

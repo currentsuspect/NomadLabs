@@ -1,7 +1,6 @@
-
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { MOCK_USER } from '../constants';
+import { api } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -16,50 +15,70 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Start null to force usage of login flow
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const storedUserId = localStorage.getItem('nomad_session_user');
+    if (storedUserId) {
+      api.users.get(storedUserId).then(foundUser => {
+        if (foundUser) setUser(foundUser);
+        setIsLoading(false);
+      });
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
 
   const login = async (email?: string, password?: string) => {
     setIsLoading(true);
-    // Simulate network delay
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        setUser(MOCK_USER);
-        setIsLoading(false);
-        resolve();
-      }, 1500);
-    });
+    if (!email) {
+      setIsLoading(false);
+      throw new Error('Email required');
+    }
+    
+    const foundUser = await api.users.login(email);
+    if (foundUser) {
+      setUser(foundUser);
+      localStorage.setItem('nomad_session_user', foundUser.id);
+    } else {
+      setIsLoading(false);
+      throw new Error('Invalid credentials');
+    }
+    setIsLoading(false);
   };
 
   const signup = async (name: string, email: string, password: string) => {
     setIsLoading(true);
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        // Create a new mock user based on input
-        const newUser: User = {
-            ...MOCK_USER,
-            id: `u-${Date.now()}`,
-            name: name,
-            email: email,
-            role: UserRole.MEMBER,
-            avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
-            expertise: ['Novice'],
-        };
-        setUser(newUser);
-        setIsLoading(false);
-        resolve();
-      }, 1500);
-    });
+    const newUser: User = {
+        id: `u-${Date.now()}`,
+        name: name,
+        email: email,
+        role: UserRole.MEMBER,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
+        expertise: ['Researcher'],
+        bio: 'New member of the lab.',
+        followingTags: [],
+        followingUsers: []
+    };
+    
+    await api.users.register(newUser);
+    setUser(newUser);
+    localStorage.setItem('nomad_session_user', newUser.id);
+    setIsLoading(false);
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('nomad_session_user');
   };
   
-  const updateUser = (updates: Partial<User>) => {
+  const updateUser = async (updates: Partial<User>) => {
     if (user) {
-      setUser({ ...user, ...updates });
+      const updatedUser = { ...user, ...updates };
+      setUser(updatedUser);
+      await api.users.update(updatedUser);
     }
   };
 
