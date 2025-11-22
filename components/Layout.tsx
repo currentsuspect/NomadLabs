@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { useNotification } from './NotificationProvider';
 import { Button } from './ui/Button';
-import { Logo } from './ui/Logo';
 import { 
   Bell, 
   User as UserIcon, 
@@ -75,10 +74,7 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-3 font-bold text-xl tracking-tight text-white hover:opacity-90 transition-opacity">
-              <div className="h-8 w-8">
-                <Logo className="w-full h-full" />
-              </div>
-              <span className="hidden sm:inline">Nomad Labs</span>
+              <span className="font-bold text-2xl">Nomad Labs</span>
             </Link>
             
             {/* Desktop Nav */}
@@ -299,10 +295,7 @@ export const Layout: React.FC<{ children?: React.ReactNode }> = ({ children }) =
       <footer className="border-t border-slate-800 bg-slate-950 py-12 mt-20">
         <div className="container mx-auto px-4 grid md:grid-cols-4 gap-8 text-sm text-slate-400">
           <div className="col-span-2">
-            <div className="flex items-center gap-2 font-bold text-white mb-4">
-              <div className="h-5 w-5">
-                 <Logo className="w-full h-full" />
-              </div>
+            <div className="flex items-center gap-2 font-bold text-white mb-4 text-xl">
               Nomad Labs
             </div>
             <p className="max-w-xs mb-6 leading-relaxed font-mono text-xs opacity-70">

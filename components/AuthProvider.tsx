@@ -1,14 +1,17 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole } from '../types';
+import { User } from '../types';
 import { api } from '../services/api';
+import { supabase } from '../services/supabase';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email?: string, password?: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
-  updateUser: (updates: Partial<User>) => void;
+  updateUser: (updates: Partial<User>) => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -18,72 +21,93 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
   useEffect(() => {
-    const storedUserId = localStorage.getItem('nomad_session_user');
-    if (storedUserId) {
-      api.users.get(storedUserId).then(foundUser => {
-        if (foundUser) setUser(foundUser);
+    // 1. Check active session on startup
+    const initSession = async () => {
+      try {
+        const currentUser = await api.users.getCurrent();
+        setUser(currentUser);
+      } catch (e) {
+        console.error("Auth Init Error", e);
+      } finally {
         setIsLoading(false);
-      });
-    } else {
-      setIsLoading(false);
-    }
+      }
+    };
+    initSession();
+
+    // 2. Listen for Auth changes (Sign In, Sign Out, Token Refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        const currentUser = await api.users.getCurrent();
+        setUser(currentUser);
+        setIsLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email?: string, password?: string) => {
     setIsLoading(true);
-    if (!email) {
+    try {
+      if (!email || !password) throw new Error('Credentials missing');
+      await api.users.login(email, password);
+      // Note: onAuthStateChange will handle state update
+    } catch (error) {
       setIsLoading(false);
-      throw new Error('Email required');
+      throw error;
     }
-    
-    const foundUser = await api.users.login(email);
-    if (foundUser) {
-      setUser(foundUser);
-      localStorage.setItem('nomad_session_user', foundUser.id);
-    } else {
+  };
+
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    try {
+      await api.users.loginWithGoogle();
+    } catch (error) {
       setIsLoading(false);
-      throw new Error('Invalid credentials');
+      throw error;
     }
-    setIsLoading(false);
   };
 
   const signup = async (name: string, email: string, password: string) => {
     setIsLoading(true);
-    const newUser: User = {
-        id: `u-${Date.now()}`,
-        name: name,
-        email: email,
-        role: UserRole.MEMBER,
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${name}`,
-        expertise: ['Researcher'],
-        bio: 'New member of the lab.',
-        followingTags: [],
-        followingUsers: []
-    };
-    
-    await api.users.register(newUser);
-    setUser(newUser);
-    localStorage.setItem('nomad_session_user', newUser.id);
-    setIsLoading(false);
+    try {
+      await api.users.register(name, email, password);
+      // Note: onAuthStateChange will handle state update
+    } catch (error) {
+      setIsLoading(false);
+      throw error;
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('nomad_session_user');
+  const logout = async () => {
+    setIsLoading(true);
+    await api.users.logout();
   };
   
   const updateUser = async (updates: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...updates };
+      // Optimistic update
       setUser(updatedUser);
-      await api.users.update(updatedUser);
+      try {
+        await api.users.update(updatedUser);
+      } catch (e) {
+        // Revert on fail
+        console.error("Failed to update user", e);
+        const fresh = await api.users.getCurrent();
+        setUser(fresh);
+      }
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, signup, logout, updateUser, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithGoogle, signup, logout, updateUser, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

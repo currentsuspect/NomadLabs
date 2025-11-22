@@ -2,47 +2,41 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
 import { useNotification } from '../components/NotificationProvider';
-import { ShieldAlert, Users, FileText, Settings, Activity, Search, Trash2, Edit, Plus, X, Save, Layout, Star, Pin, Check, BarChart3, Globe, Lock, Loader2 } from 'lucide-react';
+import { ShieldAlert, Users, FileText, Settings, Activity, Search, Trash2, Edit, Plus, X, Save, Layout, Star, Pin, Check, BarChart3, Globe, Lock, Loader2, Shield, Key, Ban, Cloud } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { api } from '../services/api';
-import { Post, PostStatus, Tag } from '../types';
+import { Post, PostStatus, Tag, User, UserRole } from '../types';
 
 export const AdminView: React.FC = () => {
   const { user } = useAuth();
   const { addNotification } = useNotification();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'cms' | 'users' | 'settings'>('dashboard');
   
-  // State for managing posts
+  // Data State
   const [posts, setPosts] = useState<Post[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
+  
+  // UI State
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [storageUsage, setStorageUsage] = useState({ used: 0, total: 5242880, percent: 0 }); // 5MB default quota
 
   // Fetch real data on mount
   useEffect(() => {
     if (user?.role === 'ADMIN') {
       refreshData();
-      calculateStorage();
     }
   }, [user]);
 
   const refreshData = async () => {
     setLoading(true);
-    const data = await api.posts.list();
-    setPosts(data);
+    const [postData, userData] = await Promise.all([
+        api.posts.list(),
+        api.users.getAll()
+    ]);
+    setPosts(postData);
+    setUsers(userData);
     setLoading(false);
-  };
-
-  const calculateStorage = () => {
-    let used = 0;
-    for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
-            used += ((localStorage[key].length + key.length) * 2);
-        }
-    }
-    const percent = Math.min(100, Math.round((used / 5242880) * 100));
-    setStorageUsage({ used, total: 5242880, percent });
   };
 
   if (!user || user.role !== 'ADMIN') {
@@ -58,13 +52,7 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  const handleAction = (action: string) => {
-    addNotification({
-      type: 'success',
-      title: 'System Update',
-      message: `${action} executed successfully.`
-    });
-  };
+  // --- CMS Actions ---
 
   const toggleFeatured = async (id: string) => {
     const post = posts.find(p => p.id === id);
@@ -74,7 +62,6 @@ export const AdminView: React.FC = () => {
     
     // Optimistic update
     setPosts(posts.map(p => p.id === id ? updatedPost : p));
-    
     await api.posts.update(updatedPost);
     addNotification({ type: 'info', title: 'Layout Updated', message: 'Homepage priority updated.' });
   };
@@ -85,37 +72,47 @@ export const AdminView: React.FC = () => {
 
     const updatedPost = { ...post, pinned: !post.pinned };
     setPosts(posts.map(p => p.id === id ? updatedPost : p));
-    
     await api.posts.update(updatedPost);
     addNotification({ type: 'info', title: 'Layout Updated', message: 'List priority updated.' });
   };
 
   const handleSavePost = async () => {
     if (!editingPost) return;
-    
     setPosts(posts.map(p => p.id === editingPost.id ? editingPost : p));
     await api.posts.update(editingPost);
-    
     setEditingPost(null);
-    addNotification({
-      type: 'success',
-      title: 'Database Updated',
-      message: `Entry "${editingPost.slug}" modified successfully.`
-    });
-    calculateStorage(); // Recalculate after save
+    addNotification({ type: 'success', title: 'Database Updated', message: `Entry "${editingPost.slug}" modified successfully.` });
   };
 
   const handleDeletePost = async (id: string) => {
     if (window.confirm('CONFIRM DELETION: This action is irreversible.')) {
       setPosts(posts.filter(p => p.id !== id));
       await api.posts.delete(id);
-      
-      addNotification({
-        type: 'warning',
-        title: 'Content Removed',
-        message: 'Record purged from database.'
-      });
-      calculateStorage(); // Recalculate after delete
+      addNotification({ type: 'warning', title: 'Content Removed', message: 'Record purged from database.' });
+    }
+  };
+
+  // --- User Management Actions ---
+  
+  const handleUserRoleChange = async (userId: string, newRole: string) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+
+    const updatedUser = { ...targetUser, role: newRole as UserRole };
+    setUsers(users.map(u => u.id === userId ? updatedUser : u));
+    await api.users.update(updatedUser);
+    addNotification({ type: 'success', title: 'Permissions Updated', message: `User ${targetUser.name} is now ${newRole}` });
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (userId === user.id) {
+        addNotification({ type: 'error', title: 'Action Denied', message: 'You cannot delete your own admin account.' });
+        return;
+    }
+    if (window.confirm('Are you sure you want to delete this user? This will likely orphan their posts.')) {
+        await api.users.delete(userId);
+        setUsers(users.filter(u => u.id !== userId));
+        addNotification({ type: 'warning', title: 'User Removed', message: 'User purged from database.' });
     }
   };
 
@@ -136,6 +133,7 @@ export const AdminView: React.FC = () => {
   );
 
   const filteredPosts = posts.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.email.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
     <div className="flex flex-col md:flex-row min-h-[calc(100vh-120px)] gap-8 fade-in">
@@ -152,18 +150,16 @@ export const AdminView: React.FC = () => {
         <div className="mt-8 px-4">
            <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
              <div className="flex justify-between items-center mb-2">
-               <h3 className="text-xs font-bold text-white">Storage Usage</h3>
-               <span className="text-[10px] text-slate-400">{(storageUsage.used / 1024).toFixed(1)}KB / 5MB</span>
+               <h3 className="text-xs font-bold text-white">Database Status</h3>
+               <Cloud size={12} className="text-emerald-400" />
              </div>
-             <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-               <div 
-                  className={`h-full transition-all duration-1000 ${storageUsage.percent > 80 ? 'bg-red-500' : 'bg-emerald-500'}`} 
-                  style={{ width: `${Math.max(2, storageUsage.percent)}%` }}
-               ></div>
+             <div className="flex items-center gap-2 mb-2">
+               <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+               <span className="text-xs text-emerald-400 font-mono">CONNECTED</span>
              </div>
              <div className="flex justify-between mt-2 text-[10px] text-slate-500 font-mono">
-               <span>LOCAL STORAGE</span>
-               <span>PERSISTENT</span>
+               <span>PROVIDER</span>
+               <span>SUPABASE</span>
              </div>
            </div>
         </div>
@@ -178,9 +174,9 @@ export const AdminView: React.FC = () => {
             <h2 className="text-2xl font-bold text-white mb-6">System Overview</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {[
-                { label: 'Active Sessions', val: '1', icon: Users, color: 'text-sky-400' },
-                { label: 'Request Rate', val: '24ms', icon: Activity, color: 'text-emerald-400' },
-                { label: 'Total Content', val: posts.length.toString(), icon: FileText, color: 'text-indigo-400' }
+                { label: 'Registered Users', val: users.length.toString(), icon: Users, color: 'text-sky-400' },
+                { label: 'Total Posts', val: posts.length.toString(), icon: FileText, color: 'text-indigo-400' },
+                { label: 'Cloud Status', val: 'Active', icon: Cloud, color: 'text-emerald-400' }
               ].map((stat, i) => (
                 <div key={i} className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex items-center justify-between">
                   <div>
@@ -196,17 +192,19 @@ export const AdminView: React.FC = () => {
             
             <div className="bg-slate-900/30 border border-slate-800 rounded-xl p-6">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white">Traffic Analytics</h3>
+                <h3 className="text-lg font-bold text-white">Recent Activity Log</h3>
                 <div className="flex gap-2">
-                  <button className="px-3 py-1 rounded bg-slate-800 text-xs text-white">24h</button>
-                  <button className="px-3 py-1 rounded bg-transparent text-xs text-slate-500 hover:text-white">7d</button>
+                  <span className="text-xs text-slate-500 flex items-center gap-1"><Check size={12} /> System Healthy</span>
                 </div>
               </div>
-              <div className="h-48 flex items-end gap-2">
-                 {/* Simulated visualization for client-side demo */}
-                 {[30, 45, 35, 60, 55, 70, 80, 65, 50, 75, 90, 60].map((h, i) => (
-                   <div key={i} className="flex-1 bg-indigo-500/20 hover:bg-indigo-500/40 transition-colors rounded-t-sm relative group" style={{ height: `${h}%` }}>
-                      <div className="absolute bottom-0 w-full h-1 bg-indigo-500/50"></div>
+              <div className="space-y-4">
+                 {posts.slice(0, 5).map(p => (
+                   <div key={p.id} className="flex items-center justify-between py-3 border-b border-slate-800 last:border-0">
+                     <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                        <span className="text-sm text-slate-300">New post published: <span className="font-bold text-white">{p.title}</span></span>
+                     </div>
+                     <span className="text-xs text-slate-500 font-mono">{p.publishedAt}</span>
                    </div>
                  ))}
               </div>
@@ -227,7 +225,7 @@ export const AdminView: React.FC = () => {
                   <Search className="absolute left-3 top-2.5 text-slate-500" size={14} />
                   <input 
                     type="text" 
-                    placeholder="Search database..." 
+                    placeholder="Search posts..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-1 focus:ring-primary w-64"
@@ -243,7 +241,7 @@ export const AdminView: React.FC = () => {
               ) : filteredPosts.length === 0 ? (
                  <div className="flex flex-col items-center justify-center py-20 text-slate-500">
                    <FileText size={48} className="mb-4 opacity-20" />
-                   <p>Database is empty.</p>
+                   <p>No posts found.</p>
                  </div>
               ) : (
                 <table className="w-full text-left text-sm text-slate-400">
@@ -315,12 +313,107 @@ export const AdminView: React.FC = () => {
           </div>
         )}
 
-        {/* Placeholder for Users/Settings */}
-        {(activeTab === 'users' || activeTab === 'settings') && (
+        {/* Users View */}
+        {activeTab === 'users' && (
+          <div className="flex flex-col h-full animate-in fade-in">
+             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+              <div>
+                <h2 className="text-xl font-bold text-white">User Directory</h2>
+                <p className="text-xs text-slate-400 mt-1 font-mono">Manage user roles, permissions, and accounts.</p>
+              </div>
+              <div className="flex gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 text-slate-500" size={14} />
+                  <input 
+                    type="text" 
+                    placeholder="Search users..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:ring-1 focus:ring-primary w-64"
+                  />
+                </div>
+                <Button size="sm" onClick={refreshData}><Activity size={14} className="mr-2" /> Refresh</Button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-auto">
+                <table className="w-full text-left text-sm text-slate-400">
+                  <thead className="bg-slate-950/80 text-slate-500 font-mono text-[10px] uppercase tracking-wider sticky top-0 z-10 backdrop-blur-md">
+                    <tr>
+                      <th className="px-6 py-3">User Identity</th>
+                      <th className="px-6 py-3">Role</th>
+                      <th className="px-6 py-3">Stats</th>
+                      <th className="px-6 py-3 text-right">Controls</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {filteredUsers.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-800/30 group transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-slate-700 overflow-hidden">
+                                {u.avatarUrl ? <img src={u.avatarUrl} alt={u.name} /> : <div className="h-full w-full bg-slate-600" />}
+                            </div>
+                            <div>
+                                <div className="font-bold text-slate-200">{u.name}</div>
+                                <div className="text-xs text-slate-500">{u.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                            <select 
+                                value={u.role}
+                                onChange={(e) => handleUserRoleChange(u.id, e.target.value)}
+                                className={`bg-transparent border border-slate-700 rounded px-2 py-1 text-xs font-medium focus:ring-1 focus:ring-indigo-500 outline-none ${
+                                    u.role === 'ADMIN' ? 'text-indigo-400 border-indigo-500/50 bg-indigo-500/10' : 
+                                    u.role === 'REVIEWER' ? 'text-emerald-400 border-emerald-500/50 bg-emerald-500/10' : 
+                                    'text-slate-300'
+                                }`}
+                                disabled={u.id === user.id} // Prevent demoting self
+                            >
+                                <option value="MEMBER">Member</option>
+                                <option value="AUTHOR">Author</option>
+                                <option value="REVIEWER">Reviewer</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                        </td>
+                        <td className="px-6 py-4">
+                            <div className="text-xs text-slate-500">
+                                <span className="block">Following: {u.followingUsers.length}</span>
+                                <span className="block">Expertise: {u.expertise.length}</span>
+                            </div>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                            {u.id !== user.id && (
+                                <button 
+                                    onClick={() => handleDeleteUser(u.id)}
+                                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                    title="Delete User"
+                                >
+                                    <Ban size={16} />
+                                </button>
+                            )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+            </div>
+          </div>
+        )}
+
+        {/* Settings View (Placeholder) */}
+        {activeTab === 'settings' && (
            <div className="flex items-center justify-center h-full text-slate-500">
-             <div className="text-center">
+             <div className="text-center max-w-md">
                <Settings size={48} className="mx-auto mb-4 opacity-20" />
-               <p>Module under maintenance.</p>
+               <h3 className="text-xl font-bold text-white mb-2">Platform Configuration</h3>
+               <p className="mb-6">Global settings for the instance are configured via environment variables in this version.</p>
+               <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-left font-mono text-xs text-slate-400">
+                 <div>API_VERSION: v1</div>
+                 <div>DB_PROVIDER: Supabase</div>
+                 <div>THEME: Dark Mode</div>
+               </div>
              </div>
            </div>
         )}

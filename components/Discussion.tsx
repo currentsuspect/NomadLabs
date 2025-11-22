@@ -49,29 +49,19 @@ const CommentItem: React.FC<{
 
   const handleReaction = async (type: ReactionType) => {
     if (!user) {
-      addNotification({
-        type: 'info',
-        title: 'Authentication Required',
-        message: 'Please sign in to react.'
-      });
+      addNotification({ type: 'info', title: 'Authentication Required', message: 'Please sign in to react.' });
       return;
     }
     
-    // Check if user already has THIS specific reaction
     const isTogglingOff = reactions.some(r => r.userId === user.id && r.type === type);
-
-    // Filter out ANY reaction by this user (mutual exclusivity)
-    // This ensures a user can only have one reaction at a time (e.g. Like OR Fire)
-    let newReactions = reactions.filter(r => r.userId !== user.id);
+    let newReactions = reactions.filter(r => r.userId !== user.id); // Mutually exclusive
     
-    // If we aren't just turning off the existing one, add the new one
     if (!isTogglingOff) {
       newReactions.push({ userId: user.id, type });
     }
     
     setReactions(newReactions);
     
-    // Update persistent storage
     const updatedComment = { ...comment, reactions: newReactions };
     await api.comments.update(updatedComment);
   };
@@ -91,7 +81,6 @@ const CommentItem: React.FC<{
     setIsReplying(false);
   };
 
-  // Compute counts for UI
   const getCount = (type: ReactionType) => reactions.filter(r => r.type === type).length;
   const hasReacted = (type: ReactionType) => user ? reactions.some(r => r.type === type && r.userId === user.id) : false;
 
@@ -182,8 +171,12 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
   const [newComment, setNewComment] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
 
-  useEffect(() => {
+  const loadComments = () => {
     api.comments.list(postId).then(setComments);
+  };
+
+  useEffect(() => {
+    loadComments();
   }, [postId]);
 
   const handlePostComment = async () => {
@@ -193,61 +186,34 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
     }
     if (!newComment.trim()) return;
 
+    // Create object solely for passing data, API handles DB
     const commentObj: Comment = {
-      id: `c-${Date.now()}`,
+      id: '', // DB generates
       postId,
       author: user,
       content: newComment,
-      createdAt: new Date().toLocaleDateString(),
+      createdAt: '',
       reactions: [],
       replies: []
     };
 
-    await api.comments.create(commentObj);
-    setComments([commentObj, ...comments]);
-    setNewComment('');
+    try {
+      await api.comments.create(commentObj);
+      setNewComment('');
+      loadComments(); // Reload to get ID and date from DB
+    } catch (e) {
+      addNotification({ type: 'error', title: 'Error', message: 'Failed to post comment.' });
+    }
   };
 
   const handleReply = async (parentId: string, content: string) => {
     if (!user) return;
-    
-    const newReply: Comment = {
-      id: `r-${Date.now()}`,
-      postId, // Replies belong to same post
-      author: user,
-      content: content,
-      createdAt: new Date().toLocaleDateString(),
-      reactions: [],
-      replies: []
-    };
-
-    // Simplified recursive update
-    const addReplyRecursive = (list: Comment[]): { updated: Comment[], modified?: Comment } => {
-      let modifiedComment: Comment | undefined;
-      const updatedList = list.map(c => {
-        if (c.id === parentId) {
-          const updated = { ...c, replies: [...(c.replies || []), newReply] };
-          modifiedComment = updated;
-          return updated;
-        }
-        if (c.replies && c.replies.length > 0) {
-          const { updated: childList, modified } = addReplyRecursive(c.replies);
-          if (modified) {
-            const updated = { ...c, replies: childList };
-            modifiedComment = updated;
-            return updated;
-          }
-        }
-        return c;
-      });
-      return { updated: updatedList, modified: modifiedComment };
-    };
-
-    const { updated, modified } = addReplyRecursive(comments);
-    setComments(updated);
-    
-    if (modified) {
-       await api.comments.update(modified);
+    try {
+      // Use specific reply method in API to handle parent_id
+      await api.comments.reply(postId, content, user.id, parentId);
+      loadComments();
+    } catch (e) {
+      addNotification({ type: 'error', title: 'Error', message: 'Failed to post reply.' });
     }
   };
 
@@ -256,7 +222,7 @@ export const Discussion: React.FC<{ postId: string }> = ({ postId }) => {
       <div className="bg-slate-900/50 border-b border-slate-800 px-6 py-4 flex items-center justify-between">
         <h3 className="font-bold text-white flex items-center gap-2">
           <MessageSquare size={18} className="text-primary" />
-          Discussion <span className="text-slate-500 font-normal text-sm">({comments.length})</span>
+          Discussion
         </h3>
       </div>
 
