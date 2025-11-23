@@ -62,9 +62,11 @@ export interface Post {
   // CMS Control Flags
   featured?: boolean; // Determines if it appears in the Hero section
   pinned?: boolean;   // Determines if it sticks to the top of lists
-  
+
   // Live Data
   likes: string[]; // Array of User IDs
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type ReactionType = 'LIKE' | 'FIRE' | 'BRAIN' | 'ROCKET';

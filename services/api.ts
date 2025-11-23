@@ -24,9 +24,9 @@ const mapDbPostToPost = (p: any, authorProfile?: any): Post => ({
   content: p.content || '',
   authorId: p.author_id,
   // Handle case where authorProfile might be an array (if 1:many inferred) or object
-  author: (authorProfile && !Array.isArray(authorProfile)) ? mapProfileToUser(authorProfile) 
-          : (Array.isArray(authorProfile) && authorProfile[0]) ? mapProfileToUser(authorProfile[0])
-          : { id: p.author_id, name: 'Unknown', role: UserRole.MEMBER } as User,
+  author: (authorProfile && !Array.isArray(authorProfile)) ? mapProfileToUser(authorProfile)
+    : (Array.isArray(authorProfile) && authorProfile[0]) ? mapProfileToUser(authorProfile[0])
+      : { id: p.author_id, name: 'Unknown', role: UserRole.MEMBER } as User,
   status: p.status as PostStatus,
   type: p.type as PostType,
   tags: typeof p.tags === 'string' ? JSON.parse(p.tags) : p.tags || [],
@@ -35,6 +35,8 @@ const mapDbPostToPost = (p: any, authorProfile?: any): Post => ({
   pinned: p.pinned,
   likes: p.likes || [],
   publishedAt: p.published_at ? new Date(p.published_at).toLocaleDateString() : new Date(p.created_at).toLocaleDateString(),
+  createdAt: new Date(p.created_at).toISOString(),
+  updatedAt: new Date(p.updated_at).toISOString(),
   citations: 0
 });
 
@@ -42,12 +44,12 @@ const mapDbCommentToComment = (c: any, authorProfile?: any): Comment => ({
   id: c.id,
   postId: c.post_id,
   author: (authorProfile && !Array.isArray(authorProfile)) ? mapProfileToUser(authorProfile)
-          : (Array.isArray(authorProfile) && authorProfile[0]) ? mapProfileToUser(authorProfile[0])
-          : { id: c.author_id, name: 'Unknown' } as User,
+    : (Array.isArray(authorProfile) && authorProfile[0]) ? mapProfileToUser(authorProfile[0])
+      : { id: c.author_id, name: 'Unknown' } as User,
   content: c.content,
   createdAt: new Date(c.created_at).toLocaleDateString(),
   reactions: typeof c.reactions === 'string' ? JSON.parse(c.reactions) : c.reactions || [],
-  replies: [] 
+  replies: []
 });
 
 // --- API Service ---
@@ -70,9 +72,9 @@ export const api = {
 
       if (error) {
         if (error.code === 'PGRST205') {
-            console.error("CRITICAL: Database tables missing. Please run SUPABASE_SETUP.sql in your Supabase SQL Editor.");
+          console.error("CRITICAL: Database tables missing. Please run SUPABASE_SETUP.sql in your Supabase SQL Editor.");
         } else {
-            console.error('Error fetching posts:', JSON.stringify(error, null, 2));
+          console.error('Error fetching posts:', JSON.stringify(error, null, 2));
         }
         return [];
       }
@@ -91,13 +93,13 @@ export const api = {
         .single();
 
       if (error) {
-         console.error("Error fetching post by slug:", slug, JSON.stringify(error, null, 2));
-         return undefined;
+        console.error("Error fetching post by slug:", slug, JSON.stringify(error, null, 2));
+        return undefined;
       }
       return mapDbPostToPost(data, data.profiles);
     },
 
-    create: async (post: Post): Promise<void> => {
+    create: async (post: Post): Promise<Post> => {
       const dbPost = {
         slug: post.slug,
         title: post.title,
@@ -115,11 +117,16 @@ export const api = {
         published_at: post.status === 'PUBLISHED' ? new Date().toISOString() : null
       };
 
-      const { error } = await supabase.from('posts').insert(dbPost);
+      // Let Supabase generate the ID
+      const { data, error } = await supabase.from('posts').insert(dbPost).select().single();
+
       if (error) {
         console.error("Error creating post:", JSON.stringify(error, null, 2));
         throw error;
       }
+
+      // Return the created post with the new ID
+      return mapDbPostToPost(data, post.author);
     },
 
     update: async (post: Post): Promise<void> => {
@@ -131,7 +138,8 @@ export const api = {
         tags: post.tags,
         featured: post.featured,
         pinned: post.pinned,
-        likes: post.likes
+        likes: post.likes,
+        updated_at: new Date().toISOString()
       };
 
       const { error } = await supabase
@@ -155,32 +163,47 @@ export const api = {
     getCurrent: async (): Promise<User | null> => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return null;
-      
+
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') {
         // PGRST116 is "Results contain 0 rows" (PostgREST), meaning profile not created yet
         console.error("Profile fetch error", JSON.stringify(error, null, 2));
       }
-      
+
       if (profile) {
         return mapProfileToUser(profile);
       } else {
         // Fallback: User exists in Auth but trigger might have failed or not run
-        return {
-            id: session.user.id,
-            email: session.user.email!,
-            name: session.user.user_metadata.name || 'Researcher',
-            role: UserRole.MEMBER,
+        // Self-heal: Create the missing profile
+        const newProfile = {
+          id: session.user.id,
+          email: session.user.email!,
+          name: session.user.user_metadata.name || 'Researcher',
+          avatar_url: session.user.user_metadata.avatarUrl,
+          role: UserRole.MEMBER
+        };
+
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert(newProfile);
+
+        if (insertError) {
+          console.error("Failed to self-heal profile:", insertError);
+          // Return fallback if insertion fails, though writes will likely fail later
+          return {
+            ...newProfile,
             expertise: [],
-            avatarUrl: session.user.user_metadata.avatarUrl,
             followingUsers: [],
             followingTags: []
-        };
+          } as User;
+        }
+
+        return mapProfileToUser(newProfile);
       }
     },
 
@@ -190,11 +213,11 @@ export const api = {
         .select('*')
         .eq('id', id)
         .single();
-      
+
       if (error || !data) return undefined;
       return mapProfileToUser(data);
     },
-    
+
     login: async (email: string, password: string): Promise<void> => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -238,17 +261,17 @@ export const api = {
 
       if (error) throw error;
     },
-    
+
     getAll: async (): Promise<User[]> => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
-        
+
       if (error) return [];
       return data.map(mapProfileToUser);
     },
-    
+
     delete: async (id: string): Promise<void> => {
       const { error } = await supabase.from('profiles').delete().eq('id', id);
       if (error) throw error;
@@ -257,47 +280,47 @@ export const api = {
 
   comments: {
     list: async (postId?: string): Promise<Comment[]> => {
-       let query = supabase
-         .from('comments')
-         .select(`*, profiles (*)`)
-         .order('created_at', { ascending: true });
-         
-       if (postId) {
-         query = query.eq('post_id', postId);
-       }
-       
-       const { data, error } = await query;
-       if (error) {
-         console.error("Error fetching comments:", JSON.stringify(error, null, 2));
-         return [];
-       }
-       
-       const comments = data.map((row: any) => mapDbCommentToComment(row, row.profiles));
-       
-       // Reconstruct Tree
-       const commentMap = new Map<string, Comment>();
-       const roots: Comment[] = [];
-       
-       comments.forEach(c => {
-         c.replies = [];
-         commentMap.set(c.id, c);
-       });
-       
-       data.forEach((row: any, index: number) => {
-         const comment = comments[index];
-         if (row.parent_id) {
-           const parent = commentMap.get(row.parent_id);
-           if (parent) {
-             parent.replies?.push(comment);
-           } else {
-             roots.push(comment);
-           }
-         } else {
-           roots.push(comment);
-         }
-       });
-       
-       return roots;
+      let query = supabase
+        .from('comments')
+        .select(`*, profiles (*)`)
+        .order('created_at', { ascending: true });
+
+      if (postId) {
+        query = query.eq('post_id', postId);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.error("Error fetching comments:", JSON.stringify(error, null, 2));
+        return [];
+      }
+
+      const comments = data.map((row: any) => mapDbCommentToComment(row, row.profiles));
+
+      // Reconstruct Tree
+      const commentMap = new Map<string, Comment>();
+      const roots: Comment[] = [];
+
+      comments.forEach(c => {
+        c.replies = [];
+        commentMap.set(c.id, c);
+      });
+
+      data.forEach((row: any, index: number) => {
+        const comment = comments[index];
+        if (row.parent_id) {
+          const parent = commentMap.get(row.parent_id);
+          if (parent) {
+            parent.replies?.push(comment);
+          } else {
+            roots.push(comment);
+          }
+        } else {
+          roots.push(comment);
+        }
+      });
+
+      return roots;
     },
 
     create: async (comment: Comment): Promise<void> => {
@@ -309,7 +332,7 @@ export const api = {
         content: comment.content,
         reactions: [],
       };
-      
+
       const { error } = await supabase.from('comments').insert(dbComment);
       if (error) throw error;
     },
@@ -333,7 +356,7 @@ export const api = {
           reactions: comment.reactions
         })
         .eq('id', comment.id);
-      
+
       if (error) throw error;
     }
   }

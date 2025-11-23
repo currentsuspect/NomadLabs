@@ -23,7 +23,7 @@ export const AuthView: React.FC = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotification();
   const [searchParams] = useSearchParams();
-  
+
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,24 +31,24 @@ export const AuthView: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       if (mode === 'login') {
         if (!email || !password) {
-            addNotification({ type: 'error', title: 'Error', message: 'Please provide email and password.' });
-            return;
+          addNotification({ type: 'error', title: 'Error', message: 'Please provide email and password.' });
+          return;
         }
         await login(email, password);
         addNotification({ type: 'success', title: 'Access Granted', message: 'Welcome back to Nomad Labs.' });
       } else {
         if (!name || !email || !password) {
-            addNotification({ type: 'error', title: 'Error', message: 'All fields are required.' });
-            return;
+          addNotification({ type: 'error', title: 'Error', message: 'All fields are required.' });
+          return;
         }
         await signup(name, email, password);
         addNotification({ type: 'success', title: 'Account Created', message: 'Please check your email for verification if required.' });
       }
-      
+
       // Redirect
       const from = searchParams.get('from') || '/';
       navigate(from);
@@ -57,7 +57,7 @@ export const AuthView: React.FC = () => {
       let msg = 'Authentication failed.';
       if (error.message) msg = error.message;
       if (error.message.includes('Invalid login')) msg = 'Incorrect email or password.';
-      
+
       addNotification({ type: 'error', title: 'Authentication Failed', message: msg });
     }
   };
@@ -74,12 +74,12 @@ export const AuthView: React.FC = () => {
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 fade-in">
       <div className="w-full max-w-md">
-        
+
         {/* Card Container */}
         <div className="relative bg-slate-900/60 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden">
           {/* Decoration */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500"></div>
-          
+
           <div className="p-8">
             <div className="text-center mb-8">
               <div className="h-16 w-16 bg-slate-800 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-inner ring-1 ring-slate-700">
@@ -89,15 +89,15 @@ export const AuthView: React.FC = () => {
                 {mode === 'login' ? 'Lab Access' : 'New Researcher'}
               </h2>
               <p className="text-slate-400 text-sm mt-2">
-                {mode === 'login' 
-                  ? 'Enter your credentials to access the facility.' 
+                {mode === 'login'
+                  ? 'Enter your credentials to access the facility.'
                   : 'Join the collective to publish and collaborate.'}
               </p>
             </div>
 
             {/* OAuth Provider */}
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               className="w-full mb-6 flex items-center gap-3 bg-white text-slate-900 hover:bg-slate-100 border-transparent h-12"
               onClick={handleGoogleLogin}
               disabled={isLoading}
@@ -121,8 +121,8 @@ export const AuthView: React.FC = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Full Name</label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 text-slate-500" size={16} />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                       placeholder="Dr. Alex Chen"
                       value={name}
@@ -136,8 +136,8 @@ export const AuthView: React.FC = () => {
                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 text-slate-500" size={16} />
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                     placeholder="researcher@nomadlabs.dev"
                     value={email}
@@ -150,8 +150,8 @@ export const AuthView: React.FC = () => {
                 <label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label>
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-3 text-slate-500" size={16} />
-                  <input 
-                    type="password" 
+                  <input
+                    type="password"
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-sm text-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
                     placeholder="••••••••"
                     value={password}
@@ -160,9 +160,9 @@ export const AuthView: React.FC = () => {
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full mt-2 h-11 bg-indigo-600 hover:bg-indigo-500 text-white"
+              <Button
+                type="submit"
+                className="w-full mt-2 h-11"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -180,22 +180,22 @@ export const AuthView: React.FC = () => {
 
             {/* Toggle Mode */}
             <div className="mt-6 text-center">
-               <p className="text-sm text-slate-400">
-                 {mode === 'login' ? "Don't have an account? " : "Already have an ID? "}
-                 <button 
-                   className="text-indigo-400 hover:text-indigo-300 font-bold hover:underline"
-                   onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                 >
-                   {mode === 'login' ? 'Register' : 'Sign In'}
-                 </button>
-               </p>
+              <p className="text-sm text-slate-400">
+                {mode === 'login' ? "Don't have an account? " : "Already have an ID? "}
+                <button
+                  className="text-indigo-400 hover:text-indigo-300 font-bold hover:underline"
+                  onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+                >
+                  {mode === 'login' ? 'Register' : 'Sign In'}
+                </button>
+              </p>
             </div>
           </div>
-          
+
           {/* Footer Status */}
           <div className="bg-slate-950 px-8 py-4 border-t border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-600 uppercase tracking-wider">
-             <span>Identity Provider</span>
-             <span className="flex items-center gap-1 text-emerald-500"><Lock size={10} /> Supabase Auth</span>
+            <span>Identity Provider</span>
+            <span className="flex items-center gap-1 text-emerald-500"><Lock size={10} /> Supabase Auth</span>
           </div>
         </div>
       </div>
